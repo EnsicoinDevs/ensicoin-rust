@@ -1,0 +1,6 @@
+[package]
+name = "ensicoin-rust"
+version = "0.1.0"
+authors = ["Arttaaz <arttaaz@gmail.com>"]
+
+[dependencies]
