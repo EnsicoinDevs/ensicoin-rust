@@ -1,20 +1,18 @@
 mod model;
 use model::block::Block as Block;
-use model::hash::Hash;
+use std::time::SystemTime;
 extern crate sha2;
 
 fn main() {
-    let hachich = Hash { val: Vec::new() };
-    let hachich2 = Hash { val: Vec::new() };
     let mut block : Block = Block {
         version: 1,
         index: 42,
-        timestamp: 123456789,
-        hash: hachich2,
-        previous_hash: hachich,
+        timestamp: SystemTime::now(),
+        hash: " ".to_string(),
+        previous_hash: "".to_string(),
         nonce: 0,
         transactions: Vec::new()
     };
     block.hash = block.hash();
-    println!("{:?}", block);
+    println!("{}", block.hash);
 }
