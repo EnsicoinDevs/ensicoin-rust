@@ -1,12 +1,13 @@
+use std::time::UNIX_EPOCH;
 use std::time::SystemTime;
 use model::transaction;
 use model::hash::ToHex;
 use sha2::{Sha256, Digest};
 
-static mut current_index: u64 = 0;
+static mut CURRENT_INDEX: u64 = 1;
 
 unsafe fn increment_index() {
-    current_index += 1;
+    CURRENT_INDEX += 1;
 }
 
 #[derive(Debug)]
@@ -16,27 +17,46 @@ pub struct Block {
     pub timestamp : SystemTime,
     pub hash : String,
     pub previous_hash : String,
+    pub difficulty : u64,
     pub nonce : u64,
     pub transactions : Vec<transaction::Transaction>,
 }
 
 impl Block {
 
-    // pub fn genesis_block() -> Block {
-    //     Block : {
-    //         version : 1
-    //     }
-    // }
+    /**
+     *  création du bloc génésis qui n'a pas de previous hash et a pour index 0
+     **/
+    pub fn genesis_block() -> Block {
+        let mut b : Block = Block {
+            version         : 0,
+            index           : 0,
+            timestamp       : SystemTime::now(),
+            hash            : "".to_string(),
+            previous_hash   : "".to_string(),
+            difficulty      : 0,
+            nonce           : 0,
+            transactions    : Vec::new()
+        };
+        b.hash = b.hash();
+        b
+    }
 
-    pub unsafe fn new() -> Block {
-        let mut block = Block{ version : 0, index : current_index, timestamp : SystemTime::now(), hash : "".to_string(), previous_hash : "".to_string(), nonce : 0, transactions : Vec::new()};
+    /**
+     *  créer un nouveau bloc à l'aide du hash du bloc dernier bloc contenu dans la chaîne
+     **/
+    pub unsafe fn new(latest_block : &Block) -> Block {
+        let mut block = Block{ version : 0, index : CURRENT_INDEX, timestamp : SystemTime::now(), hash : "".to_string(), previous_hash : latest_block.hash.clone().to_string(), difficulty: 0, nonce : 0, transactions : Vec::new()};
         block.hash = block.hash();
         increment_index();
         return block;
     }
 
+    /**
+     *  calcule le hash d'un bloc
+     **/
     pub fn hash(&self) -> String {
-        match self.timestamp.elapsed() {
+        match self.timestamp.duration_since(UNIX_EPOCH) {
            Ok(elapsed) => {
                let hash_string = format!("{}{}{}{}", self.version, self.index, elapsed.as_secs(), self.previous_hash);
                let mut sha = Sha256::new();
@@ -51,19 +71,4 @@ impl Block {
         }
     }
 
-    pub fn hash_block(version : u64, index : u64, timestamp : SystemTime, previous_hash : String, nonce : u64) -> String {
-        match timestamp.elapsed() {
-            Ok(elapsed) => {
-                let hash_string = format!("{}{}{}{}", version, index, elapsed.as_secs(), previous_hash.to_string());
-                let mut sha = Sha256::new();
-                sha.input(hash_string);
-                let result = sha.result();
-                let result = result[..].to_hex();
-                result
-            }
-            Err(e) => {
-                panic!(e)
-            }
-        }
-    }
 }
