@@ -14,6 +14,7 @@ unsafe fn increment_index() {
 pub struct Block {
     pub version : u64,
     pub index : u64,
+    pub flags : Vec<String>,
     pub timestamp : SystemTime,
     pub hash : String,
     pub previous_hash : String,
@@ -31,6 +32,7 @@ impl Block {
         let mut b : Block = Block {
             version         : 0,
             index           : 0,
+            flags           : Vec::new(),
             timestamp       : SystemTime::now(),
             hash            : "".to_string(),
             previous_hash   : "".to_string(),
@@ -46,10 +48,18 @@ impl Block {
      *  créer un nouveau bloc à l'aide du hash du bloc dernier bloc contenu dans la chaîne
      **/
     pub unsafe fn new(latest_block : &Block) -> Block {
-        let mut block = Block{ version : 0, index : CURRENT_INDEX, timestamp : SystemTime::now(), hash : "".to_string(), previous_hash : latest_block.hash.clone().to_string(), difficulty: 0, nonce : 0, transactions : Vec::new()};
+        let mut block = Block{ version : 0, index : CURRENT_INDEX, flags : Vec::new(), timestamp : SystemTime::now(), hash : "".to_string(), previous_hash : latest_block.hash.clone().to_string(), difficulty: 0, nonce : 0, transactions : Vec::new()};
         block.hash = block.hash();
         increment_index();
         return block;
+    }
+
+    fn flags_string(&self) -> String {
+        let mut string : String = String::new();
+        for e in &self.flags {
+            string += &e.clone();
+        }
+        string
     }
 
     /**
@@ -58,12 +68,15 @@ impl Block {
     pub fn hash(&self) -> String {
         match self.timestamp.duration_since(UNIX_EPOCH) {
            Ok(elapsed) => {
-               let hash_string = format!("{}{}{}{}", self.version, self.index, elapsed.as_secs(), self.previous_hash);
+               let hash_string = format!("{}{}{}{}{}", self.version, self.index, self.flags_string(), elapsed.as_secs(), self.previous_hash);
                let mut sha = Sha256::new();
                sha.input(hash_string);
                let result = sha.result();
                let result = result[..].to_hex();
-               result
+               sha = Sha256::new();
+               sha.input(result);
+               let result = sha.result();
+               result[..].to_hex()
            }
            Err(e) => {
                panic!(e);
