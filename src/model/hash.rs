@@ -1,3 +1,7 @@
+
+/**
+ *  Trait qui permet de transformer un tableau d'octets en une chaîne de caractères codé en héxadécimal
+ **/
 pub trait ToHex {
 
     fn to_hex(&self) -> String;

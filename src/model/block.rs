@@ -54,10 +54,24 @@ impl Block {
         return block;
     }
 
+    /**
+     *  transforme le tableau de flags en chaîne de caractères
+     **/
     fn flags_string(&self) -> String {
         let mut string : String = String::new();
         for e in &self.flags {
             string += &e.clone();
+        }
+        string
+    }
+
+    /**
+     *  transforme les hash du tableau de transactions en chaîne de caractères
+     **/
+    fn hash_transactions(&self) -> String {
+        let mut string = String::new();
+        for e in &self.transactions {
+            string += &e.hash().clone();
         }
         string
     }
@@ -68,7 +82,7 @@ impl Block {
     pub fn hash(&self) -> String {
         match self.timestamp.duration_since(UNIX_EPOCH) {
            Ok(elapsed) => {
-               let hash_string = format!("{}{}{}{}{}", self.version, self.index, self.flags_string(), elapsed.as_secs(), self.previous_hash);
+               let hash_string = format!("{}{}{}{}{}{}", self.version, self.index, self.flags_string(), elapsed.as_secs(), self.previous_hash, self.hash_transactions());
                let mut sha = Sha256::new();
                sha.input(hash_string);
                let result = sha.result();
@@ -82,6 +96,42 @@ impl Block {
                panic!(e);
            }
         }
+    }
+
+    pub fn is_valid(block : &Block) -> bool {
+        if block.transactions.len() == 0 {
+            return false;
+        }
+        for (i,c) in block.hash.chars().enumerate() {
+            if i < block.difficulty as usize {
+                if c != '0' {
+                    return false;
+                }
+            }
+        }
+
+        match block.timestamp.duration_since(UNIX_EPOCH) {
+            Ok(elapsed) => {
+                match SystemTime::now().duration_since(UNIX_EPOCH) {
+                    Ok(now) => {
+                        if elapsed > now {
+                            return false;
+                        }
+                    }
+                    Err(error) => {
+                        panic!(error);
+                    }
+                }
+            }
+            Err(e) => {
+                panic!(e);
+            }
+        }
+
+        //first transaction is coinbase
+        //validate each transaction
+
+        true
     }
 
 }

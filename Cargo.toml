@@ -5,3 +5,4 @@ authors = ["Arttaaz <arttaaz@gmail.com>"]
 
 [dependencies]
 sha2 = "0.8.0"
+serde_json = "1.0"

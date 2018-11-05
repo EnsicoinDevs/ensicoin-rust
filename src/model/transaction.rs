@@ -46,6 +46,23 @@ pub struct Transaction {
 
 
 impl Transaction {
+
+    /**
+     *  créer une nouvelle transaction
+     **/
+    pub fn new() -> Transaction {
+        let tr = Transaction {
+            version : 0,
+            flags   : Vec::new(),
+            inputs  : Vec::new(),
+            outputs : Vec::new()
+        };
+        tr
+    }
+
+    /**
+     *  Transforme une transaction en une chaîne de caractère pour la passer dans une fonction de hachage
+     **/
     pub fn to_string(&self) -> String {
         let mut string : String = "".to_string();
         string += &self.version.to_string();
@@ -60,6 +77,10 @@ impl Transaction {
         }
         string
     }
+
+    /**
+     *  hash la transaction et renvoie le hash sous forme de chaîne de caractères
+     **/
     pub fn hash(&self) -> String {
         let hash_string = format!("{}", self.to_string());
         let mut sha = Sha256::new();
@@ -70,5 +91,14 @@ impl Transaction {
         sha.input(result);
         let result = sha.result();
         result[..].to_hex()
+    }
+
+    pub fn is_valid(transaction : Transaction) -> bool {
+
+        if transaction.inputs.len() == 0 || transaction.outputs.len() == 0 {
+            return false;
+        }
+
+        true
     }
 }
