@@ -1,9 +1,7 @@
-
 /**
  *  Trait qui permet de transformer un tableau d'octets en une chaîne de caractères codé en héxadécimal
  **/
 pub trait ToHex {
-
     fn to_hex(&self) -> String;
 }
 
@@ -17,8 +15,6 @@ impl ToHex for [u8] {
             v.push(CHARS[(byte & 0xf) as usize]);
         }
 
-        unsafe {
-            String::from_utf8_unchecked(v)
-        }
+        unsafe { String::from_utf8_unchecked(v) }
     }
 }

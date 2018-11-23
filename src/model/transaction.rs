@@ -1,15 +1,15 @@
-use sha2::{Sha256, Digest};
 use model::hash::ToHex;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 struct Input {
-    previous_output : (String, u64),
-    script : Vec<String>
+    previous_output: (String, u64),
+    script: Vec<String>,
 }
 
 impl Input {
     pub fn to_string(&self) -> String {
-        let mut string : String = "".to_string();
+        let mut string: String = "".to_string();
         string = string + &self.previous_output.0.clone();
         string = string + &self.previous_output.1.to_string();
         for e in &self.script {
@@ -21,13 +21,13 @@ impl Input {
 
 #[derive(Debug)]
 struct Output {
-    value   : u64,
-    script  : Vec<String>
+    value: u64,
+    script: Vec<String>,
 }
 
 impl Output {
     pub fn to_string(&self) -> String {
-        let mut string : String = "".to_string();
+        let mut string: String = "".to_string();
         string += &self.value.to_string();
         for e in &self.script {
             string += &e.clone();
@@ -38,24 +38,22 @@ impl Output {
 
 #[derive(Debug)]
 pub struct Transaction {
-    version : u64,
-    flags   : Vec<String>,
-    inputs  : Vec<Input>,
-    outputs : Vec<Output>,
+    version: u64,
+    flags: Vec<String>,
+    inputs: Vec<Input>,
+    outputs: Vec<Output>,
 }
 
-
 impl Transaction {
-
     /**
      *  créer une nouvelle transaction
      **/
     pub fn new() -> Transaction {
         let tr = Transaction {
-            version : 0,
-            flags   : Vec::new(),
-            inputs  : Vec::new(),
-            outputs : Vec::new()
+            version: 0,
+            flags: Vec::new(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
         };
         tr
     }
@@ -64,7 +62,7 @@ impl Transaction {
      *  Transforme une transaction en une chaîne de caractère pour la passer dans une fonction de hachage
      **/
     pub fn to_string(&self) -> String {
-        let mut string : String = "".to_string();
+        let mut string: String = "".to_string();
         string += &self.version.to_string();
         for e in &self.flags {
             string += &e.clone();
@@ -93,8 +91,7 @@ impl Transaction {
         result[..].to_hex()
     }
 
-    pub fn is_valid(transaction : Transaction) -> bool {
-
+    pub fn is_valid(transaction: Transaction) -> bool {
         if transaction.inputs.len() == 0 || transaction.outputs.len() == 0 {
             return false;
         }
