@@ -1,4 +1,6 @@
 extern crate sha2;
+// extern crate serde_derive;
+extern crate bincode;
 mod blockchain;
 mod model;
 mod server;
