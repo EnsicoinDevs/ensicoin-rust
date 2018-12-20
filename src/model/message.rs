@@ -1,23 +1,39 @@
-pub struct Message<Message_type> {
-    pub magic       : String,
-    pub type        : String,
-    pub timestamp   : u64,
-    pub message     : Message_type
+use std::net::TcpStream;
+
+pub struct Address {
+    timestamp   : u64,
+    ipv6_4      : String,
+    port        : u16
+}
+
+pub struct Var_uint {
+
+}
+
+pub struct Var_str {
+
 }
 
 pub struct Who_am_i {
-    version : u64
+    version         : u64,
+    from            : Address,
+    service_count   : Var_uint,
+    services        : Var_str
+} impl Who_am_i {
+    fn new(stream : &TcpStream) -> Who_am_i {
+
+    }
 }
 
 pub struct get_blocks {
     hashes : Vec<String>,
-    stop_hash : String = "".to_owned()
+    stop_hash : String
 }
 
 pub struct Get_mempool;
 
 pub struct Inv {
-    type : char,
+    inv_type : char,
     hashes : Vec<String>
 }
 
@@ -26,6 +42,6 @@ pub struct Get_data {
 }
 
 pub struct Not_found {
-    type : char,
-    hash : String = "".to_owned()
+    not_found_type : char,
+    hash : String
 }
