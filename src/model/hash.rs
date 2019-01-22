@@ -5,7 +5,7 @@ pub trait ToHex {
     fn to_hex(&self) -> String;
 }
 
-const CHARS: &[u8] = b"0123456789abcdef";
+const CHARS : &[u8] = b"0123456789abcdef";
 
 impl ToHex for [u8] {
     fn to_hex(&self) -> String {
@@ -15,6 +15,6 @@ impl ToHex for [u8] {
             v.push(CHARS[(byte & 0xf) as usize]);
         }
 
-        unsafe { String::from_utf8_unchecked(v) }
+        String::from_utf8(v).unwrap() 
     }
 }
