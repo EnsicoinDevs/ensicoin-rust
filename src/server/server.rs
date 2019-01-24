@@ -9,16 +9,16 @@ use std::thread;
 use std::io::prelude::*;
 use std::sync::Arc;
 
-pub struct Server<'a> {
+pub struct Server {
     pub listener        : net::TcpListener,
     pub server_version  : Arc<u32>,
-    pub peers           : Vec<&'a TcpStream>,
+    pub peers           : Vec<TcpStream>,
     // pub blockchain  : Blockchain,
     pub mempool         : Vec<Transaction>
 }
 
-impl<'a> Server<'a> {
-    pub fn new() -> Server<'a> {
+impl Server {
+    pub fn new() -> Server {
         Server {
             listener        : net::TcpListener::bind("127.0.0.1:4224").unwrap(),
             server_version  : Arc::new(1),
@@ -31,7 +31,7 @@ impl<'a> Server<'a> {
     pub fn listen(&mut self) {
         for stream in self.listener.incoming() {
             let mut stream = stream.unwrap().try_clone().unwrap();
-            self.peers.push(&stream);
+            self.peers.push(stream.try_clone().unwrap());
             let mut connection_version = Arc::clone(&self.server_version);
             thread::spawn(move || {
                 //read message
