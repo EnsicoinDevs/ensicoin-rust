@@ -6,6 +6,7 @@ use serde::ser::{SerializeSeq};
 use std::net::TcpStream;
 use std::io::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
 trait Size {
     fn size(&self) -> u64;
@@ -171,7 +172,7 @@ pub struct WhoAmI {
     version         : u32,
     from            : Address,
     service_count   : VarUint,
-    services        : VarStr
+    services        : VarStr,
 } impl WhoAmI {
     pub fn new(mut stream : &TcpStream) -> WhoAmI {
         let mut version : [u8; 4] = [0; 4];
@@ -186,21 +187,22 @@ pub struct WhoAmI {
         services = VarStr::new(stream);
 
         WhoAmI {
-            version: version,
-            from: address,
-            service_count: service_count,
-            services: services
+            version         : version,
+            from            : address,
+            service_count   : service_count,
+            services        : services,
         }
     }
 
+    // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
-    pub fn handle(&self, mut stream: &TcpStream, server_version : u32) -> u32 {
+    pub fn handle(&self, mut stream: &TcpStream, server_version : u32) -> Result<Arc<u32>, Box<bincode::ErrorKind>> {
         // send WhoAmI
         let message = WhoAmI {
-            version: server_version,
-            from: Address::from_string("127.0.0.1:4224".to_owned()).unwrap(),
-            service_count: VarUint::from_u64(1),
-            services: VarStr::from_string("node".to_owned())
+            version         : server_version,
+            from            : Address::from_string("127.0.0.1:4224".to_owned()).unwrap(),
+            service_count   : VarUint::from_u64(1),
+            services        : VarStr::from_string("node".to_owned()),
         };
         let magic : u32 = 422021; ////////////////// magic number
         serialize_into(stream, &magic).unwrap();
@@ -222,7 +224,7 @@ pub struct WhoAmI {
         stream.write(b"\0\0\0").unwrap();
         serialize_into(stream, &(0 as u64)).unwrap();
 
-        min(server_version, self.version)
+        Ok(Arc::new(min(server_version, self.version)))
     }
 
     fn send(message: WhoAmI, stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
@@ -240,30 +242,23 @@ impl Size for WhoAmI {
     }
 }
 
-pub struct WhoAmIAck;
-impl WhoAmIAck {
-    pub fn handle(mut stream : &TcpStream) {
-
-    }
-}
-
-pub struct GetBlocks {
-    hashes : Vec<String>,
-    stop_hash : String
-}
-
-pub struct GetMempool;
-
-pub struct Inv {
-    inv_type : char,
-    hashes : Vec<String>
-}
-
-pub struct GetData {
-    inv : Inv
-}
-
-pub struct NotFound {
-    not_found_type : char,
-    hash : String
-}
+// pub struct GetBlocks {
+//     hashes : Vec<String>,
+//     stop_hash : String
+// }
+//
+// pub struct GetMempool;
+//
+// pub struct Inv {
+//     inv_type : char,
+//     hashes : Vec<String>
+// }
+//
+// pub struct GetData {
+//     inv : Inv
+// }
+//
+// pub struct NotFound {
+//     not_found_type : char,
+//     hash : String
+// }
