@@ -78,7 +78,6 @@ impl Server {
                 }
                 peers.lock().unwrap().remove(&stream.peer_addr().unwrap().ip());
             }).unwrap();
-            dbg!(&self.peers);
         }
     }
 
@@ -94,17 +93,22 @@ impl Server {
                     "connect\n" => {
                         println!("Enter a valid ip address: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
+                        ip = ip[..ip.len()-1].to_string();
+                        dbg!(&ip);
                         let peer = TcpStream::connect(std::net::SocketAddr::new(ip.parse().unwrap(), 4224));
                         match peer {
                             Ok(peer)    => {
+                                let peers = peers.clone();
                                 peers.lock().unwrap().insert(peer.peer_addr().unwrap().ip(), peer);
-
+                                dbg!(&peers);
                             },
                             Err(oops)   => println!("Could not connect to {} .\n Error: {:?}", &ip, oops)
                         }
                     }
                     _ => ()
                 }
+                command = "".into();
+                ip = "".into();
             }
         });
     }
