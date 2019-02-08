@@ -12,6 +12,7 @@ trait Size {
     fn size(&self) -> u64;
 }
 
+#[derive(Debug)]
 pub struct Address {
     timestamp   : u64,
     ipv6_4      : String,
@@ -36,7 +37,7 @@ pub struct Address {
             port: port
         }
     }
-    fn from_string(address : String) -> Result<Address, std::time::SystemTimeError> {
+    pub fn from_string(address : String) -> Result<Address, std::time::SystemTimeError> {
 
         let t = SystemTime::now().duration_since(UNIX_EPOCH)?;
         Ok(Address {
@@ -72,6 +73,7 @@ impl serde::ser::Serialize for Address {
     }
 }
 
+#[derive(Debug)]
 pub struct VarUint {
     size    : u8,
     value   : u64
@@ -97,7 +99,7 @@ pub struct VarUint {
         }
     }
 
-    fn from_u64(value : u64) -> VarUint {
+    pub fn from_u64(value : u64) -> VarUint {
         VarUint {
             size: 8,
             value: value
@@ -126,7 +128,7 @@ impl serde::ser::Serialize for VarUint {
     }
 }
 
-
+#[derive(Debug)]
 pub struct VarStr {
     size    : VarUint,
     value   : String
@@ -142,7 +144,7 @@ pub struct VarStr {
         }
     }
 
-    fn from_string(value: String) -> VarStr {
+    pub fn from_string(value: String) -> VarStr {
         VarStr {
             size: VarUint::from_u64(value.len() as u64),
             value: value
@@ -167,20 +169,30 @@ impl serde::ser::Serialize for VarStr {
         seq.end()
     }
 }
-
+#[derive(Debug)]
 pub struct WhoAmI {
     version         : u32,
     from            : Address,
     service_count   : VarUint,
     services        : VarStr,
 } impl WhoAmI {
-    pub fn new(mut stream : &TcpStream) -> WhoAmI {
+    pub fn new() -> WhoAmI {
+        WhoAmI {
+            version         : 1,
+            from            : Address::from_string("127.0.0.1".to_string()).unwrap(),
+            service_count   : VarUint::from_u64(1),
+            services        : VarStr::from_string("node".to_string())
+        }
+    }
+
+    pub fn read(mut stream : &TcpStream) -> WhoAmI {
         let mut version : [u8; 4] = [0; 4];
         let address : Address;
         let service_count : VarUint;
         let services : VarStr;
 
         stream.read(&mut version).unwrap();
+        dbg!(&version);
         let version : u32 = deserialize(&version).unwrap();
         address = Address::new(stream);
         service_count = VarUint::new(stream);
@@ -197,6 +209,7 @@ pub struct WhoAmI {
     // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
     pub fn handle(&self, mut stream: &TcpStream, server_version : u32) -> Result<Arc<u32>, Box<bincode::ErrorKind>> {
+        dbg!(&self);
         // send WhoAmI
         let message = WhoAmI {
             version         : server_version,
@@ -204,30 +217,34 @@ pub struct WhoAmI {
             service_count   : VarUint::from_u64(1),
             services        : VarStr::from_string("node".to_owned()),
         };
-        let magic : u32 = 422021; ////////////////// magic number
-        serialize_into(stream, &magic).unwrap();
-        let message_type = "whoami";
-        let message_type = serialize(&message_type).unwrap();
-        let message_type = &message_type[message_type.len()-8..];
-        stream.write(&message_type).unwrap();
-        stream.write(b"\0\0\0\0\0\0").unwrap();
-        serialize_into(stream, &message.size()).unwrap();
-
-        WhoAmI::send(message, stream).unwrap();
+        WhoAmI::send(message, stream)?;
 
         // send WhoAmIAck
-        serialize_into(stream, &magic).unwrap();
+        let magic : u32 = 422021; ////////////////// magic number
+        serialize_into(stream, &magic)?;
         let message_type = "whoamiack";
-        let message_type = serialize(&message_type).unwrap();
-        let message_type = &message_type[message_type.len()-8..];
-        stream.write(&message_type).unwrap();
-        stream.write(b"\0\0\0").unwrap();
-        serialize_into(stream, &(0 as u64)).unwrap();
+        let message_type = serialize(&message_type.as_bytes())?;
+        stream.write(&message_type)?;
+        stream.write(b"\0\0\0")?;
+        serialize_into(stream, &(0 as u64))?;
 
         Ok(Arc::new(min(server_version, self.version)))
     }
 
-    fn send(message: WhoAmI, stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
+    pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
+
+        let magic : u32 = 422021; ////////////////// magic number
+        let mut magic = serialize(&magic)?;
+        magic.reverse();
+        stream.write(&magic)?;
+        let message_type = "whoami";
+        // let message_type = serialize(&message_type.as_bytes())?;
+        // let message_type = message.reverse
+        stream.write(&message_type.as_bytes())?;
+        stream.write(b"\0\0\0\0\0\0")?;
+        serialize_into(stream, &message.size())?;
+
+        serialize_into(stream, &(0 as u64)).unwrap();
         serialize_into(stream, &message.version)?;
         serialize_into(stream, &message.from)?;
         serialize_into(stream, &message.service_count)?;

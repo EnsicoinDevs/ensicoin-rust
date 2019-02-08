@@ -23,7 +23,7 @@ impl Server {
     pub fn new() -> Server {
         // let (tx, rx) = mpsc::channel();
         Server {
-            listener        : net::TcpListener::bind("127.0.0.1:4224").unwrap(),
+            listener        : net::TcpListener::bind("0.0.0.0:4224").unwrap(),
             server_version  : Arc::new(1),
             peers           : Arc::new(Mutex::new(HashMap::new())),
             // sender          : tx,
@@ -50,25 +50,23 @@ impl Server {
                     stream.read(&mut length).unwrap();
 
                     let size : u64 = deserialize(&length).unwrap();
-                    let mut string = [12, 0, 0, 0, 0, 0, 0, 0].to_vec();
-                    string.append(&mut message_type.to_vec());
-                    let message_type : &str = deserialize(&string).unwrap();
-
+                    let message_type : String = String::from_utf8(message_type.to_vec()).unwrap();
                     if !i_know_you {
-                        match message_type {
-                            "whoami" => {
-                                connection_version = message::WhoAmI::new(&stream).handle(&stream, 1).unwrap();
+                        match message_type.as_str() {
+                            "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
+                                println!("Recieve message whoami");
+                                connection_version = message::WhoAmI::read(&stream).handle(&stream, 1).unwrap();
                             },
-                            "whoamiack" => {
+                            "whoamiack\u{0}\u{0}\u{0}" => {
                                 i_know_you = true;
                             },
-                            _ => { break; }
+                            _ => { println!("Recieved incorrect message_type"); break; }
                         }
 
                     }
                     else {
                         if size > 0 {
-                            match message_type {
+                            match message_type.as_str() {
                                 "getaddr" => {},
                                 "addr" => {},
                                 _ => ()
@@ -99,8 +97,9 @@ impl Server {
                         match peer {
                             Ok(peer)    => {
                                 let peers = peers.clone();
-                                peers.lock().unwrap().insert(peer.peer_addr().unwrap().ip(), peer);
-                                dbg!(&peers);
+                                // peers.lock().unwrap().insert(peer.peer_addr().unwrap().ip(), &peer);
+                                let message = message::WhoAmI::new();
+                                message::WhoAmI::send(message, &peer).unwrap();
                             },
                             Err(oops)   => println!("Could not connect to {} .\n Error: {:?}", &ip, oops)
                         }
