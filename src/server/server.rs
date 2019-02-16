@@ -1,15 +1,13 @@
-// use blockchain::blockchain::Blockchain;
-// use model::block::Block;
 use std::net::IpAddr;
 use std::net::TcpStream;
 use bincode::deserialize;
-use model::message;
 use std::net;
 use std::thread;
 use std::io::prelude::*;
 use std::sync::{Mutex, Arc};
 // use std::sync::mpsc;
 use std::collections::HashMap;
+use model::message;
 
 pub struct Server {
     pub listener        : net::TcpListener,
@@ -34,7 +32,10 @@ impl Server {
     pub fn listen(&mut self) {
         for stream in self.listener.incoming() {
             let mut stream = stream.unwrap().try_clone().unwrap();
-            self.peers.lock().unwrap().insert(stream.peer_addr().unwrap().ip(), stream.try_clone().unwrap());
+            let mut peers = self.peers.lock().unwrap();
+            if !peers.contains_key(&stream.peer_addr().unwrap().ip()) {
+                self.peers.lock().unwrap().insert(stream.peer_addr().unwrap().ip(), stream.try_clone().unwrap());
+            }
             let peers = self.peers.clone();
             let mut connection_version = Arc::clone(&self.server_version);
             thread::Builder::new().name(stream.peer_addr().unwrap().ip().to_string()).spawn(move || {
@@ -46,21 +47,27 @@ impl Server {
 
                 loop {
                     stream.read(&mut magic).unwrap();
+                    let mut magic = magic.to_vec();
+                    magic.reverse();
+                    let magic : u32 = deserialize(&magic).unwrap();
+                    dbg!(&magic);
                     stream.read(&mut message_type).unwrap();
                     stream.read(&mut length).unwrap();
 
+                    let mut length = length.to_vec();
+                    length.reverse();
                     let size : u64 = deserialize(&length).unwrap();
                     let message_type : String = String::from_utf8(message_type.to_vec()).unwrap();
                     if !i_know_you {
                         match message_type.as_str() {
                             "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
-                                println!("Recieve message whoami");
+                                println!("Recieved message whoami");
                                 connection_version = message::WhoAmI::read(&stream).handle(&stream, 1).unwrap();
                             },
                             "whoamiack\u{0}\u{0}\u{0}" => {
                                 i_know_you = true;
                             },
-                            _ => { println!("Recieved incorrect message_type"); break; }
+                            _ => { println!("Recieved incorrect message_type : {:?}", message_type.as_str()); break; }
                         }
 
                     }
@@ -97,7 +104,11 @@ impl Server {
                         match peer {
                             Ok(peer)    => {
                                 let peers = peers.clone();
-                                // peers.lock().unwrap().insert(peer.peer_addr().unwrap().ip(), &peer);
+                                let mut peers = peers.lock().unwrap();
+
+                                let ip = peer.peer_addr().unwrap().ip();
+                                peers.insert(ip, peer);
+                                let peer = peers.get_mut(&ip).unwrap();
                                 let message = message::WhoAmI::new();
                                 message::WhoAmI::send(message, &peer).unwrap();
                             },

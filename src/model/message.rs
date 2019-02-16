@@ -26,9 +26,12 @@ pub struct Address {
         stream.read(&mut timestamp).unwrap();
         stream.read(&mut ip).unwrap();
         stream.read(&mut port).unwrap();
-
+        let mut timestamp = timestamp.to_vec();
+        timestamp.reverse();
         let timestamp : u64 = deserialize(&timestamp).unwrap();
-        let ip : String = deserialize(&ip).unwrap();
+        let ip : String = String::from_utf8(ip.to_vec()).unwrap();
+        let mut port = port.to_vec();
+        port.reverse();
         let port : u16 = deserialize(&port).unwrap();
 
         Address {
@@ -186,13 +189,13 @@ pub struct WhoAmI {
     }
 
     pub fn read(mut stream : &TcpStream) -> WhoAmI {
+        println!("reading whoami message...");
         let mut version : [u8; 4] = [0; 4];
         let address : Address;
         let service_count : VarUint;
         let services : VarStr;
 
         stream.read(&mut version).unwrap();
-        dbg!(&version);
         let version : u32 = deserialize(&version).unwrap();
         address = Address::new(stream);
         service_count = VarUint::new(stream);
@@ -209,7 +212,7 @@ pub struct WhoAmI {
     // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
     pub fn handle(&self, mut stream: &TcpStream, server_version : u32) -> Result<Arc<u32>, Box<bincode::ErrorKind>> {
-        dbg!(&self);
+        println!("fully read incoming message, sending response");
         // send WhoAmI
         let message = WhoAmI {
             version         : server_version,
@@ -217,16 +220,16 @@ pub struct WhoAmI {
             service_count   : VarUint::from_u64(1),
             services        : VarStr::from_string("node".to_owned()),
         };
-        WhoAmI::send(message, stream)?;
-
+        WhoAmI::send(message, stream).unwrap();
         // send WhoAmIAck
         let magic : u32 = 422021; ////////////////// magic number
-        serialize_into(stream, &magic)?;
+        let mut magic = serialize(&magic).unwrap();
+        magic.reverse();
+        serialize_into(stream, &magic).unwrap();
         let message_type = "whoamiack";
-        let message_type = serialize(&message_type.as_bytes())?;
-        stream.write(&message_type)?;
-        stream.write(b"\0\0\0")?;
-        serialize_into(stream, &(0 as u64))?;
+        stream.write(&message_type.as_bytes()).unwrap();
+        stream.write(b"\0\0\0").unwrap();
+        serialize_into(stream, &(0 as u64)).unwrap();
 
         Ok(Arc::new(min(server_version, self.version)))
     }
@@ -234,21 +237,25 @@ pub struct WhoAmI {
     pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
 
         let magic : u32 = 422021; ////////////////// magic number
-        let mut magic = serialize(&magic)?;
+        let mut magic = serialize(&magic).unwrap();
         magic.reverse();
-        stream.write(&magic)?;
+        stream.write(&magic).unwrap();
         let message_type = "whoami";
-        // let message_type = serialize(&message_type.as_bytes())?;
-        // let message_type = message.reverse
-        stream.write(&message_type.as_bytes())?;
-        stream.write(b"\0\0\0\0\0\0")?;
-        serialize_into(stream, &message.size())?;
+        stream.write(&message_type.as_bytes()).unwrap();
+        stream.write(b"\0\0\0\0\0\0").unwrap();
+        let mut size = serialize(&message.size()).unwrap();
+        size.reverse();
+        stream.write(&size).unwrap();
 
-        serialize_into(stream, &(0 as u64)).unwrap();
-        serialize_into(stream, &message.version)?;
-        serialize_into(stream, &message.from)?;
-        serialize_into(stream, &message.service_count)?;
-        serialize_into(stream, &message.services)?;
+        let mut version = serialize(&message.version).unwrap();
+        version.reverse();
+        stream.write(&version).unwrap();
+        let from = &serialize(&message.from).unwrap()[8..];
+        stream.write(&from).unwrap();
+        let service_count = &serialize(&message.service_count).unwrap()[8..];
+        stream.write(service_count).unwrap();
+        let services = &serialize(&message.services).unwrap()[8..];
+        stream.write(services).unwrap();
         Ok(())
     }
 
