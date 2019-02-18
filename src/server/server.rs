@@ -9,6 +9,13 @@ use std::sync::{Mutex, Arc};
 use std::collections::HashMap;
 use model::message;
 
+#[derive(PartialEq)]
+enum State {
+    Tcp,
+    WhoAmI,
+    Acknowledged
+}
+
 pub struct Server {
     pub listener        : net::TcpListener,
     pub server_version  : Arc<u32>,
@@ -33,19 +40,23 @@ impl Server {
         for stream in self.listener.incoming() {
             let mut stream = stream.unwrap().try_clone().unwrap();
             let mut peers = self.peers.lock().unwrap();
+            let we_connected;
             if !peers.contains_key(&stream.peer_addr().unwrap().ip()) {
                 self.peers.lock().unwrap().insert(stream.peer_addr().unwrap().ip(), stream.try_clone().unwrap());
+                we_connected = false;
+            } else {
+                we_connected = true;
             }
             let peers = self.peers.clone();
             let mut connection_version = Arc::clone(&self.server_version);
             thread::Builder::new().name(stream.peer_addr().unwrap().ip().to_string()).spawn(move || {
                 //read message
-                let mut magic : [u8; 4] = [0; 4];
-                let mut message_type : [u8; 12] = [0; 12];
-                let mut length : [u8; 8] = [0; 8];
-                let mut i_know_you : bool = false;
-
+                let mut i_know_you : State = State::Tcp;
                 loop {
+                    let mut magic : [u8; 4] = [0; 4];
+                    let mut message_type : [u8; 12] = [0; 12];
+                    let mut length : [u8; 8] = [0; 8];
+
                     stream.read(&mut magic).unwrap();
                     let mut magic = magic.to_vec();
                     magic.reverse();
@@ -58,14 +69,25 @@ impl Server {
                     length.reverse();
                     let size : u64 = deserialize(&length).unwrap();
                     let message_type : String = String::from_utf8(message_type.to_vec()).unwrap();
-                    if !i_know_you {
+                    if i_know_you != State::Acknowledged {
                         match message_type.as_str() {
                             "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
-                                println!("Recieved message whoami");
-                                connection_version = message::WhoAmI::read(&stream).handle(&stream, 1).unwrap();
+                                if i_know_you == State::Tcp {
+                                    println!("Received message whoami");
+                                    connection_version = message::WhoAmI::read(&stream).handle(&stream, 1, we_connected).unwrap();
+                                    i_know_you = State::WhoAmI;
+                                } else {
+                                    println!("received unusual number of whoami");
+                                    break;
+                                }
                             },
                             "whoamiack\u{0}\u{0}\u{0}" => {
-                                i_know_you = true;
+                                if i_know_you == State::WhoAmI {
+                                    i_know_you = State::Acknowledged;
+                                } else {
+                                    println!("reveiced whoamiack message before whoami message");
+                                    break;
+                                }
                             },
                             _ => { println!("Recieved incorrect message_type : {:?}", message_type.as_str()); break; }
                         }

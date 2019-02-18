@@ -211,21 +211,23 @@ pub struct WhoAmI {
 
     // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
-    pub fn handle(&self, mut stream: &TcpStream, server_version : u32) -> Result<Arc<u32>, Box<bincode::ErrorKind>> {
-        println!("fully read incoming message, sending response");
-        // send WhoAmI
-        let message = WhoAmI {
-            version         : server_version,
-            from            : Address::from_string("127.0.0.1:4224".to_owned()).unwrap(),
-            service_count   : VarUint::from_u64(1),
-            services        : VarStr::from_string("node".to_owned()),
-        };
-        WhoAmI::send(message, stream).unwrap();
+    pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<Arc<u32>, Box<bincode::ErrorKind>> {
+        if we_connected == false {
+            println!("fully read incoming message, sending response");
+            // send WhoAmI
+            let message = WhoAmI {
+                version         : server_version,
+                from            : Address::from_string("127.0.0.1".to_owned()).unwrap(),
+                service_count   : VarUint::from_u64(1),
+                services        : VarStr::from_string("node".to_owned()),
+            };
+            WhoAmI::send(message, stream).unwrap();
+        }
         // send WhoAmIAck
         let magic : u32 = 422021; ////////////////// magic number
         let mut magic = serialize(&magic).unwrap();
         magic.reverse();
-        serialize_into(stream, &magic).unwrap();
+        stream.write(&magic).unwrap();
         let message_type = "whoamiack";
         stream.write(&message_type.as_bytes()).unwrap();
         stream.write(b"\0\0\0").unwrap();
