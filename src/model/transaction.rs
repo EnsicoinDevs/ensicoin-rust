@@ -1,4 +1,4 @@
-use model::hash::ToHex;
+use utils::hash::ToHex;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug)]

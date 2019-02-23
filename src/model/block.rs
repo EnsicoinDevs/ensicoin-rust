@@ -1,4 +1,4 @@
-use model::hash::ToHex;
+use utils::hash::ToHex;
 use model::transaction;
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
