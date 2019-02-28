@@ -14,7 +14,6 @@ use utils::clp;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = clp::initiate_cli();
-    dbg!(&cli.port);
     let mut server = Server::new(cli.port);
     server.interactive();
     server.listen();

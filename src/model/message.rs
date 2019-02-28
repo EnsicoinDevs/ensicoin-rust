@@ -24,21 +24,16 @@ trait Size {
 #[derive(Debug)]
 pub struct Address {
     timestamp   : u64,
-    ip          : [u8; 16],
+    ip          : Vec<u8>,
     port        : u16
 } impl Address {
-    fn new(mut stream : &TcpStream) -> Address {
-        let mut timestamp   : [u8; 8] = [0; 8];
-        let mut ip          : [u8; 16] = [0; 16];
-        let mut port        : [u8; 2] = [0; 2];
+    fn new(payload : Vec<u8>) -> Address {
+        let mut timestamp   = payload[0..8].to_vec();
+        let ip              = payload[8..24].to_vec();
+        let mut port        = payload[24..].to_vec();
 
-        stream.read(&mut timestamp).unwrap();
-        stream.read(&mut ip).unwrap();
-        stream.read(&mut port).unwrap();
-        let mut timestamp = timestamp.to_vec();
         timestamp.reverse();
         let timestamp : u64 = deserialize(&timestamp).unwrap();
-        let mut port = port.to_vec();
         port.reverse();
         let port : u16 = deserialize(&port).unwrap();
 
@@ -59,20 +54,23 @@ pub struct Address {
         }
         Ok(Address {
             timestamp: t.as_secs(),
-            ip: bytes,
+            ip: bytes.to_vec(),
             port: 4224
         })
 
     }
 
-    pub fn send(&self, mut stream : &TcpStream) {
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
         let mut t = serialize(&self.timestamp).unwrap();
         t.reverse();
-        stream.write(&t).unwrap();
-        stream.write(&self.ip).unwrap();
+        buffer.append(&mut t);
+        let mut ip = self.ip.clone();
+        buffer.append(&mut ip);
         let mut p = serialize(&self.port).unwrap();
         p.reverse();
-        stream.write(&p).unwrap();
+        buffer.append(&mut p);
+        buffer
     }
 }
 impl Size for Address {
@@ -86,23 +84,21 @@ pub struct VarUint {
     size    : u8,
     value   : u64
 } impl VarUint {
-    fn new(mut stream : &TcpStream) -> VarUint {
-        let mut size : [u8; 1] = [0; 1];
-        stream.read(&mut size).unwrap();
-        let mut size : u8 = deserialize(&size).unwrap();
-        let mut value : [u8; 1] = [0; 1];
+    fn new(payload : &Vec<u8>) -> VarUint {
+        let mut size = payload[0];
         match size {
-            0xFD => { size = 2; let mut value : [u8; 2] = [0; 2];},
-            0xFE => { size = 4; let mut value : [u8; 4] = [0; 4];},
-            0xFF => { size = 8; let mut value : [u8; 8] = [0; 8];},
+            0xFD => { size = 2; },
+            0xFE => { size = 4; },
+            0xFF => { size = 8; },
             _    => {return VarUint {size: 1, value: size as u64};}
         }
 
-        stream.read(&mut value).unwrap();
+        let mut value = payload[1..size as usize].to_vec();
+        value.reverse();
         let value : u64 = deserialize(&value).unwrap();
 
         VarUint {
-            size: size as u8,
+            size: size,
             value: value
         }
     }
@@ -114,8 +110,9 @@ pub struct VarUint {
         }
     }
 
-    pub fn send(&self, mut stream : &TcpStream) {
-        let mut v;
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut v : Vec<u8>;
         match self.size {
             2 => v = serialize(&(self.value as u16)).unwrap(),
             4 => v = serialize(&(self.value as u32)).unwrap(),
@@ -123,12 +120,14 @@ pub struct VarUint {
             _ => panic!()
         }
         v.reverse();
-        stream.write(&v).unwrap();
+        buffer.push(self.size);
+        buffer.append(&mut v);
+        buffer
     }
 }
 impl Size for VarUint {
     fn size(&self) -> u64 {
-        (1 + self.size*8).into()
+        (1 + self.size).into()
     }
 }
 
@@ -137,10 +136,10 @@ pub struct VarStr {
     size    : VarUint,
     value   : String
 } impl VarStr {
-    fn new(mut stream : &TcpStream) -> VarStr {
-        let length : VarUint = VarUint::new(stream);
-        let mut value = vec![0; length.value as usize];
-        stream.read_exact(&mut value).unwrap();
+    fn new(payload : &Vec<u8>) -> VarStr {
+        let length : VarUint = VarUint::new(payload);
+        let size = length.size() as usize;
+        let value = payload[size..length.value as usize].to_vec();
         let value = String::from_utf8(value).unwrap();
         VarStr {
             size: length,
@@ -155,9 +154,10 @@ pub struct VarStr {
         }
     }
 
-    pub fn send(&self, mut stream : &TcpStream) {
-        self.size.send(stream);
-        stream.write(&self.value.as_bytes()).unwrap();
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = self.size.send();
+        buffer.append(&mut self.value.as_bytes().to_vec());
+        buffer
     }
 }
 impl Size for VarStr {
@@ -182,19 +182,16 @@ pub struct WhoAmI {
         }
     }
 
-    pub fn read(mut stream : &TcpStream) -> WhoAmI {
+    pub fn read(payload : Vec<u8>) -> WhoAmI {
         println!("reading whoami message...");
-        let mut version : [u8; 4] = [0; 4];
-        let address : Address;
-        let service_count : VarUint;
-        let services : VarStr;
-
-        stream.read(&mut version).unwrap();
+        let mut version = payload[0..4].to_vec();
+        version.reverse();
         let version : u32 = deserialize(&version).unwrap();
-        address = Address::new(stream);
-        service_count = VarUint::new(stream);
-        services = VarStr::new(stream);
 
+        let address = Address::new(payload[4..30].to_vec());
+        let service_count = VarUint::new(&payload[30..].to_vec());
+        let size = service_count.size() as usize;
+        let services = VarStr::new(&payload[29+size..].to_vec());
         WhoAmI {
             version         : version,
             from            : address,
@@ -206,8 +203,8 @@ pub struct WhoAmI {
     // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
     pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<u32, Box<bincode::ErrorKind>> {
+        println!("fully read incoming whoami, sending response");
         if we_connected == false {
-            println!("fully read incoming message, sending response");
             // send WhoAmI
             let message = WhoAmI {
                 version         : server_version,
@@ -218,38 +215,40 @@ pub struct WhoAmI {
             WhoAmI::send(message, stream)?;
         }
         // send WhoAmIAck
+        let mut buffer = Vec::new();
         let magic : u32 = 422021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
         magic.reverse();
-        stream.write(&magic)?;
+        buffer.append(&mut magic);
         let message_type = "whoamiack";
-        stream.write(&message_type.as_bytes())?;
-        stream.write(b"\0\0\0")?;
-        serialize_into(stream, &(0 as u64))?;
+        buffer.append(&mut message_type.as_bytes().to_vec());
+        buffer.append(&mut vec![0; 3]);
+        buffer.append(&mut vec![0; 8]);
+        stream.write(&buffer)?;
 
         Ok(min(server_version, self.version))
     }
 
     pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
-
+        let mut buffer = Vec::new();
         let magic : u32 = 422021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
         magic.reverse();
-        stream.write(&magic)?;
+        buffer.append(&mut magic);
         let message_type = "whoami";
-        stream.write(&message_type.as_bytes())?;
-        stream.write(b"\0\0\0\0\0\0")?;
+        buffer.append(&mut message_type.as_bytes().to_vec());
+        buffer.append(&mut vec![0; 6]);
         let mut size = serialize(&message.size())?;
         size.reverse();
-        stream.write(&size)?;
+        buffer.append(&mut size);
 
         let mut version = serialize(&message.version)?;
         version.reverse();
-        stream.write(&version)?;
-        message.from.send(stream);
-        message.service_count.send(stream);
-        message.services.send(stream);
-        println!("Are you kidding me?");
+        buffer.append(&mut version);
+        buffer.append(&mut message.from.send());
+        buffer.append(&mut message.service_count.send());
+        buffer.append(&mut message.services.send());
+        stream.write(&buffer)?;
         Ok(())
     }
 

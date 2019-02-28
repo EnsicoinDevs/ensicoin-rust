@@ -37,31 +37,26 @@ pub struct Peer {
     }
 
     pub fn read_message(&mut self) -> Result<(), Error> {
-        let mut magic : [u8; 4] = [0; 4];
-        let mut message_type : [u8; 12] = [0; 12];
-        let mut length : [u8; 8] = [0; 8];
-
-        self.stream.read(&mut magic)?;
-        let mut magic = magic.to_vec();
+        let header = self.read_header()?;
+        let mut magic = header[0..4].to_vec();
         magic.reverse();
         let magic : u32 = deserialize(&magic)?;
         if magic != 422021 {
             println!("wrong magic number : {}", magic);
             self.close().unwrap();
         }
-        self.stream.read(&mut message_type)?;
-        self.stream.read(&mut length)?;
-
-        let mut length = length.to_vec();
+        let message_type : String = String::from_utf8(header[4..16].to_vec())?;
+        let mut length = header[16..24].to_vec();
         length.reverse();
-        let size : u64 = deserialize(&length)?;
-        let message_type : String = String::from_utf8(message_type.to_vec())?;
+        let length : u64 = deserialize(&length)?;
+        let payload = self.read_payload(length as usize)?;
+
         if self.connection_state != State::Acknowledged {
             match message_type.as_str() {
                 "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::Tcp {
                         println!("Received message whoami");
-                        self.connection_version = message::WhoAmI::read(&self.stream).handle(&self.stream, 1, self.initiated_by_us)?;
+                        self.connection_version = message::WhoAmI::read(payload).handle(&self.stream, 1, self.initiated_by_us)?;
                         self.connection_state = State::WhoAmI;
                     } else {
                         println!("received unusual number of whoami");
@@ -70,9 +65,9 @@ pub struct Peer {
                 },
                 "whoamiack\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::WhoAmI {
-                        println!("Please print this");
                         self.connection_state = State::Acknowledged;
                         self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap().ip())).unwrap();
+                        println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
                         self.close()?;
@@ -86,12 +81,10 @@ pub struct Peer {
 
         }
         else {
-            if size > 0 {
-                match message_type.as_str() {
-                    "getaddr" => {},
-                    "addr" => {},
-                    _ => ()
-                }
+            match message_type.as_str() {
+                "getaddr" => {},
+                "addr" => {},
+                _ => ()
             }
         }
         Ok(())
@@ -141,5 +134,25 @@ pub struct Peer {
         self.server_sender.send(ServerMessage::DeletePeer(self.stream.peer_addr().unwrap().ip())).unwrap();
         self.stream.shutdown(std::net::Shutdown::Both)?;
         Err(Error::ConnectionClosed)
+    }
+
+    fn send(&mut self, message : Vec<u8>) {
+        self.stream.write(&message).unwrap();
+    }
+
+    fn read_header(&mut self) -> Result<Vec<u8>, Error> {
+        let mut buffer : [u8; 24] = [0; 24];
+        self.stream.read(&mut buffer)?;
+        Ok(buffer.to_vec())
+    }
+
+    fn read_payload(&mut self, length : usize) -> Result<Vec<u8>, Error> {
+        if length != 0 {
+            let mut buffer = vec![0; length];
+            self.stream.read(&mut buffer)?;
+            Ok(buffer)
+        } else {
+            Ok(vec![0])
+        }
     }
 }
