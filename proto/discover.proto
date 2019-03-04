@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+message NewPeer {
+  string address = 1;
+}
+
+message Ok {}
+
+service Discover {
+  rpc DiscoverPeer(NewPeer) returns(Ok) {}
+}

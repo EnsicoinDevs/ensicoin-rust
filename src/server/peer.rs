@@ -1,3 +1,4 @@
+use bincode::serialize;
 use bincode::deserialize;
 use model::message;
 use model::message::ServerMessage;
@@ -82,6 +83,10 @@ pub struct Peer {
         }
         else {
             match message_type.as_str() {
+                "2plus2is4" => {
+                    let message = self.prepare_header("minus1thats3".to_string(), 0)?;
+                    self.send(message);
+                },
                 "getaddr" => {},
                 "addr" => {},
                 _ => ()
@@ -101,7 +106,7 @@ pub struct Peer {
                     }
                 },
                 Err(e)  =>  match e {
-                                std::sync::mpsc::TryRecvError::Disconnected => panic!("Peer tried to read but server died."),
+                                std::sync::mpsc::TryRecvError::Disconnected => break,
                                 _ => ()
                             }
             }
@@ -134,6 +139,22 @@ pub struct Peer {
         self.server_sender.send(ServerMessage::DeletePeer(self.stream.peer_addr().unwrap().ip())).unwrap();
         self.stream.shutdown(std::net::Shutdown::Both)?;
         Err(Error::ConnectionClosed)
+    }
+
+    fn prepare_header(&self, message_type : String, size : u64) -> Result<Vec<u8>, Error> {
+        let mut buffer = Vec::new();
+        let magic : u32 = 422021; ////////////////// magic number
+        let mut magic = serialize(&magic)?;
+        magic.reverse();
+        buffer.append(&mut magic);
+        buffer.append(&mut message_type.as_bytes().to_vec());
+        if message_type.len() < 12 {
+            buffer.append(&mut vec![0; 12-message_type.len()]);
+        }
+        let mut size = serialize(&size)?;
+        size.reverse();
+        buffer.append(&mut size);
+        Ok(buffer)
     }
 
     fn send(&mut self, message : Vec<u8>) {

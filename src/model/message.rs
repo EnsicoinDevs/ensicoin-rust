@@ -1,6 +1,5 @@
 use std::net::IpAddr;
 use std::cmp::min;
-use bincode::serialize_into;
 use bincode::{serialize, deserialize};
 use std::net::TcpStream;
 use std::io::prelude::*;
@@ -166,6 +165,26 @@ impl Size for VarStr {
     }
 }
 
+pub struct InvVect {
+    hash_type   : u32,
+    hash        : Vec<u8>
+}
+impl InvVect {
+    pub fn send(mut self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut h_type = serialize(&self.hash_type).unwrap();
+        h_type.reverse();
+        buffer.append(&mut h_type);
+        buffer.append(&mut self.hash);
+        buffer
+    }
+}
+impl Size for InvVect {
+    fn size(&self) -> u64 {
+        36
+    }
+}
+
 #[derive(Debug)]
 pub struct WhoAmI {
     version         : u32,
@@ -175,7 +194,7 @@ pub struct WhoAmI {
 } impl WhoAmI {
     pub fn new() -> WhoAmI {
         WhoAmI {
-            version         : 1,
+            version         : 0,
             from            : Address::from_string("46.193.66.26".to_string()).unwrap(),
             service_count   : VarUint::from_u64(1),
             services        : VarStr::from_string("node".to_string())
@@ -258,24 +277,23 @@ impl Size for WhoAmI {
         8 + self.from.size() + self.service_count.size() + self.services.size()
     }
 }
-
-// pub struct GetBlocks {
-//     hashes : Vec<String>,
-//     stop_hash : String
-// }
-//
-// pub struct GetMempool;
-//
-// pub struct Inv {
-//     inv_type : char,
-//     hashes : Vec<String>
-// }
-//
-// pub struct GetData {
-//     inv : Inv
-// }
-//
-// pub struct NotFound {
-//     not_found_type : char,
-//     hash : String
-// }
+// inv or getdata or notfound message
+pub struct Inv {
+    count       : VarUint,
+    inventory   : Vec<InvVect>
+}
+impl Inv {
+    pub fn send(mut self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.append(&mut self.count.send());
+        for i in self.inventory {
+            buffer.append(&mut i.send());
+        }
+        buffer
+    }
+}
+impl Size for Inv {
+    fn size(&self) -> u64 {
+        self.count.size() + 36 * (self.inventory.len() as u64)
+    }
+}

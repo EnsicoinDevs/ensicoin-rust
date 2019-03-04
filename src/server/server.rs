@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::net::IpAddr;
 use std::net::TcpStream;
 use std::net;
@@ -7,7 +8,8 @@ use std::sync::mpsc;
 use std::collections::HashMap;
 use model::message;
 use server::peer::Peer;
-
+use rpc;
+use rpc::discover_grpc::Discover;
 
 pub struct Server {
     pub listener        : net::TcpListener,
@@ -21,6 +23,7 @@ impl Server {
     pub fn new(port: u16) -> Server {
         println!("Ensicoin started");
         let (tx, rx) = mpsc::channel();
+        launch_discovery_server();
         Server {
             listener        : net::TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
             server_version  : Arc::new(1),
@@ -116,4 +119,29 @@ impl Server {
             }
         }
     }
+}
+
+struct DiscoverImpl;
+impl Discover for DiscoverImpl {
+    fn discover_peer(&self, _o: ::grpc::RequestOptions, p: rpc::discover::NewPeer) -> ::grpc::SingleResponse<rpc::discover::Ok> {
+        let _ip : SocketAddr = p.get_address().parse().unwrap();
+        //check known peer db
+        println!("Received peer");
+        ::grpc::SingleResponse::completed(rpc::discover::Ok::new())
+    }
+}
+
+fn launch_discovery_server() {
+    thread::spawn(move || {
+        let mut server = grpc::ServerBuilder::new_plain();
+        server.http.set_port(2442);
+        server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl));
+        let _server = server.build().expect("server");
+
+        println!("discovery server started on port {}", 2442);
+
+        loop {
+            std::thread::park();
+        }
+    });
 }
