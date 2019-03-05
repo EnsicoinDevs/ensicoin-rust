@@ -7,6 +7,8 @@ extern crate protobuf;
 extern crate grpc;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate sled;
+extern crate dirs;
 mod utils;
 mod blockchain;
 mod model;

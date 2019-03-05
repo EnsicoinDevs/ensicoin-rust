@@ -1,6 +1,6 @@
 use bincode::serialize;
 use bincode::deserialize;
-use model::message;
+use model::message::WhoAmI;
 use model::message::ServerMessage;
 use std::net::TcpStream;
 use std::io::prelude::*;
@@ -57,7 +57,7 @@ pub struct Peer {
                 "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::Tcp {
                         println!("Received message whoami");
-                        self.connection_version = message::WhoAmI::read(payload).handle(&self.stream, 1, self.initiated_by_us)?;
+                        self.connection_version = WhoAmI::read(payload).handle(&self.stream, 1, self.initiated_by_us)?;
                         self.connection_state = State::WhoAmI;
                     } else {
                         println!("received unusual number of whoami");
@@ -130,8 +130,8 @@ pub struct Peer {
     }
 
     pub fn connect(self) {
-        let message = message::WhoAmI::new();
-        message::WhoAmI::send(message, &self.stream).unwrap();
+        let message = WhoAmI::new();
+        WhoAmI::send(message, &self.stream).unwrap();
         self.update();
         }
 

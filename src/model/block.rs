@@ -1,4 +1,5 @@
 use utils::hash::ToHex;
+use utils::types::*;
 use model::transaction;
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
@@ -16,8 +17,8 @@ pub struct Block {
     pub index: u64,
     pub flags: Vec<String>,
     pub timestamp: u64,
-    pub hash: String,
-    pub previous_hash: String,
+    pub hash: VarStr,
+    pub previous_hash: VarStr,
     pub difficulty: u64,
     pub nonce: u64,
     pub transactions: Vec<transaction::Transaction>,
@@ -42,13 +43,13 @@ impl Block {
             index: 0,
             flags: Vec::new(),
             timestamp: time,
-            hash: "".to_string(),
-            previous_hash: "".to_string(),
+            hash: VarStr::from_string("".to_string()),
+            previous_hash: VarStr::from_string("".to_string()),
             difficulty: 0,
             nonce: 0,
             transactions: Vec::new(),
         };
-        b.hash = b.hash();
+        b.hash = VarStr::from_string(b.hash());
         b
     }
 
@@ -66,13 +67,13 @@ impl Block {
             index: CURRENT_INDEX,
             flags: Vec::new(),
             timestamp: time,
-            hash: "".to_string(),
-            previous_hash: latest_block.hash.clone().to_string(),
+            hash: VarStr::from_string("".to_string()),
+            previous_hash: latest_block.hash.clone(),
             difficulty: 0,
             nonce: 0,
             transactions: Vec::new(),
         };
-        block.hash = block.hash();
+        block.hash = VarStr::from_string(block.hash());
         increment_index();
         return block;
     }
@@ -109,7 +110,7 @@ impl Block {
             self.index,
             self.flags_string(),
             self.timestamp,
-            self.previous_hash,
+            self.previous_hash.val(),
             self.hash_transactions()
         );
         let mut sha = Sha256::new();
@@ -126,7 +127,7 @@ impl Block {
         if block.transactions.len() == 0 {
             return false;
         }
-        for (i, c) in block.hash.chars().enumerate() {
+        for (i, c) in block.hash.val().chars().enumerate() {
             if i < block.difficulty as usize {
                 if c != '0' {
                     return false;
@@ -150,4 +151,14 @@ impl Block {
 
         true
     }
+
+    //TODO
+    //pub fn send(&self) -> Vec<u8> {
+    //
+    //}
+
+    //TODO
+    //pub fn read(buffer: Vec<u8>) -> Block {
+    //
+    //}
 }
