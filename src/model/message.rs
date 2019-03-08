@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use utils::types::*;
 
 //server messages
+#[derive(Debug)]
 pub enum ServerMessage {
     CreatePeer(IpAddr),
     AddPeer(mpsc::Sender<ServerMessage>, IpAddr),

@@ -1,101 +1,97 @@
-use utils::hash::ToHex;
-use sha2::{Digest, Sha256};
+use bincode::serialize;
+use utils::types::*;
+use utils::hash;
 
 #[derive(Debug)]
-struct Input {
-    previous_output: (String, u64),
-    script: Vec<String>,
+pub struct Outpoint {
+    pub hash:   Vec<u8>,
+    pub index:  u32
 }
 
-impl Input {
-    pub fn to_string(&self) -> String {
-        let mut string: String = "".to_string();
-        string = string + &self.previous_output.0.clone();
-        string = string + &self.previous_output.1.to_string();
-        for e in &self.script {
-            string += &e.clone();
-        }
-        string
+impl Outpoint {
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = self.hash.clone();
+        let mut index = serialize(&self.index).unwrap();
+        index.reverse();
+        buffer.append(&mut index);
+
+        buffer
     }
 }
 
 #[derive(Debug)]
-struct Output {
-    value: u64,
-    script: Vec<String>,
+pub struct TxIn {
+    pub previous_output:    Outpoint,
+    pub script:             VarStr
 }
 
-impl Output {
-    pub fn to_string(&self) -> String {
-        let mut string: String = "".to_string();
-        string += &self.value.to_string();
-        for e in &self.script {
-            string += &e.clone();
-        }
-        string
+impl TxIn {
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = self.previous_output.send();
+        buffer.append(&mut self.script.send());
+
+        buffer
+    }
+}
+
+#[derive(Debug)]
+pub struct TxOut {
+    pub value:  u64,
+    pub script: VarStr
+}
+
+impl TxOut {
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+
+        let mut value = serialize(&self.value).unwrap();
+        value.reverse();
+        buffer.append(&mut value);
+        buffer.append(&mut self.script.send());
+
+        buffer
     }
 }
 
 #[derive(Debug)]
 pub struct Transaction {
-    version: u64,
-    flags: Vec<String>,
-    inputs: Vec<Input>,
-    outputs: Vec<Output>,
+    pub version:        u32,
+    pub flags_count:    VarUint,
+    pub flags:          Vec<VarStr>,
+    pub inputs_count:   VarUint,
+    pub inputs:         Vec<TxIn>,
+    pub outputs_count:  VarUint,
+    pub outputs:        Vec<TxOut>
 }
 
 impl Transaction {
-    /**
-     *  créer une nouvelle transaction
-     **/
-    pub fn new() -> Transaction {
-        let tr = Transaction {
-            version: 0,
-            flags: Vec::new(),
-            inputs: Vec::new(),
-            outputs: Vec::new(),
-        };
-        tr
+    pub fn hash(&self) -> Vec<u8> {
+        let buffer = self.send();
+
+        hash::hash(hash::hash(buffer))
     }
 
-    /**
-     *  Transforme une transaction en une chaîne de caractère pour la passer dans une fonction de hachage
-     **/
-    pub fn to_string(&self) -> String {
-        let mut string: String = "".to_string();
-        string += &self.version.to_string();
-        for e in &self.flags {
-            string += &e.clone();
-        }
-        for e in &self.inputs {
-            string += &e.to_string().clone();
-        }
-        for e in &self.outputs {
-            string += &e.to_string().clone();
-        }
-        string
-    }
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut version = serialize(&self.version).unwrap();
+        version.reverse();
+        buffer.append(&mut version);
 
-    /**
-     *  hash la transaction et renvoie le hash sous forme de chaîne de caractères
-     **/
-    pub fn hash(&self) -> String {
-        let hash_string = format!("{}", self.to_string());
-        let mut sha = Sha256::new();
-        sha.input(hash_string);
-        let result = sha.result();
-        let result = result[..].to_hex();
-        sha = Sha256::new();
-        sha.input(result);
-        let result = sha.result();
-        result[..].to_hex()
-    }
-
-    pub fn is_valid(transaction: Transaction) -> bool {
-        if transaction.inputs.len() == 0 || transaction.outputs.len() == 0 {
-            return false;
+        buffer.append(&mut self.flags_count.send());
+        for flag in &self.flags {
+            buffer.append(&mut flag.send());
         }
 
-        true
+        buffer.append(&mut self.inputs_count.send());
+        for input in &self.inputs {
+            buffer.append(&mut input.send());
+        }
+
+        buffer.append(&mut self.outputs_count.send());
+        for output in &self.outputs {
+            buffer.append(&mut output.send());
+        }
+
+        buffer
     }
 }

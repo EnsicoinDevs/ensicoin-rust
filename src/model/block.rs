@@ -1,27 +1,25 @@
-use utils::hash::ToHex;
 use utils::types::*;
+use utils::hash;
+use utils::error::Error;
 use model::transaction;
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use bincode::{serialize, deserialize};
 
-static mut CURRENT_INDEX: u64 = 1;
-
-unsafe fn increment_index() {
-    CURRENT_INDEX += 1;
-}
 
 #[derive(Debug)]
 pub struct Block {
-    pub version: u64,
-    pub index: u64,
+    pub version: u32,
     pub flags: Vec<String>,
+    pub previous_hash: Vec<u8>,
+    pub merkle_root: Vec<u8>,
     pub timestamp: u64,
-    pub hash: VarStr,
-    pub previous_hash: VarStr,
+    pub height: u32,
     pub difficulty: u64,
     pub nonce: u64,
     pub transactions: Vec<transaction::Transaction>,
+    pub hash: Vec<u8>,
 }
 
 impl Block {
@@ -40,23 +38,24 @@ impl Block {
         }
         let mut b: Block = Block {
             version: 0,
-            index: 0,
             flags: Vec::new(),
+            previous_hash: vec![0; 32],
+            merkle_root: Vec::new(),
             timestamp: time,
-            hash: VarStr::from_string("".to_string()),
-            previous_hash: VarStr::from_string("".to_string()),
+            height: 0,
             difficulty: 0,
             nonce: 0,
             transactions: Vec::new(),
+            hash: Vec::new(),
         };
-        b.hash = VarStr::from_string(b.hash());
+        b.hash = b.hash();
         b
     }
 
     /**
      *  créer un nouveau bloc à l'aide du hash du bloc dernier bloc contenu dans la chaîne
      **/
-    pub unsafe fn new(latest_block: &Block) -> Block {
+    pub fn new(latest_block: &Block) -> Block {
         let mut time = 0;
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(elapsed) => time = elapsed.as_secs(),
@@ -64,72 +63,49 @@ impl Block {
         }
         let mut block = Block {
             version: 0,
-            index: CURRENT_INDEX,
             flags: Vec::new(),
-            timestamp: time,
-            hash: VarStr::from_string("".to_string()),
             previous_hash: latest_block.hash.clone(),
+            merkle_root: Vec::new(),
+            timestamp: time,
+            height: 1,
             difficulty: 0,
             nonce: 0,
             transactions: Vec::new(),
+            hash: Vec::new(),
         };
-        block.hash = VarStr::from_string(block.hash());
-        increment_index();
-        return block;
-    }
-
-    /**
-     *  transforme le tableau de flags en chaîne de caractères
-     **/
-    fn flags_string(&self) -> String {
-        let mut string: String = String::new();
-        for e in &self.flags {
-            string += &e.clone();
-        }
-        string
+        block.hash = block.hash();
+        block
     }
 
     /**
      *  transforme les hash du tableau de transactions en chaîne de caractères
      **/
-    fn hash_transactions(&self) -> String {
-        let mut string = String::new();
-        for e in &self.transactions {
-            string += &e.hash().clone();
+    fn hash_transactions(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+
+        for tx in &self.transactions {
+            buffer.append(&mut tx.hash());
         }
-        string
+
+        buffer
     }
 
     /**
      *  calcule le hash d'un bloc
      **/
-    pub fn hash(&self) -> String {
-        let hash_string = format!(
-            "{}{}{}{}{}{}",
-            self.version,
-            self.index,
-            self.flags_string(),
-            self.timestamp,
-            self.previous_hash.val(),
-            self.hash_transactions()
-        );
-        let mut sha = Sha256::new();
-        sha.input(hash_string);
-        let result = sha.result();
-        let result = result[..].to_hex();
-        sha = Sha256::new();
-        sha.input(result);
-        let result = sha.result();
-        result[..].to_hex()
+    pub fn hash(&self) -> Vec<u8> {
+        let block = self.send_header().unwrap();
+        let result = hash::hash(block);
+        hash::hash(result)
     }
 
     pub fn is_valid(block: &Block) -> bool {
         if block.transactions.len() == 0 {
             return false;
         }
-        for (i, c) in block.hash.val().chars().enumerate() {
+        for (i, b) in block.hash.iter().enumerate() {
             if i < block.difficulty as usize {
-                if c != '0' {
+                if *b != 0 {
                     return false;
                 }
             }
@@ -153,9 +129,53 @@ impl Block {
     }
 
     //TODO
-    //pub fn send(&self) -> Vec<u8> {
-    //
-    //}
+    pub fn send_header(&self) -> Result<Vec<u8>, Error> {
+        let mut buffer = Vec::new();
+        let mut version = serialize(&self.version)?;
+        version.reverse();
+        buffer.append(&mut version);
+
+        let nb_flags = VarUint::from_u64(self.flags.len() as u64);
+        buffer.append(&mut nb_flags.send());
+        for s in &self.flags {
+            buffer.append(&mut VarStr::from_string(s.to_string()).send());
+        }
+
+        buffer.append(&mut self.previous_hash.clone());
+        buffer.append(&mut self.merkle_root.clone());
+
+        let mut timestamp = serialize(&self.timestamp)?;
+        timestamp.reverse();
+        buffer.append(&mut timestamp);
+
+        let mut height = serialize(&self.height)?;
+        height.reverse();
+        buffer.append(&mut height);
+
+        let mut difficulty = serialize(&self.difficulty)?;
+        difficulty.reverse();
+        buffer.append(&mut difficulty);
+
+        let mut nonce = serialize(&self.nonce)?;
+        nonce.reverse();
+        buffer.append(&mut nonce);
+
+        Ok(buffer)
+    }
+
+    pub fn send_tx(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+
+        let mut tx_count = serialize(&self.transactions.len()).unwrap();
+        tx_count.reverse();
+        buffer.append(&mut tx_count);
+
+        for tx in &self.transactions {
+            buffer.append(&mut tx.send());
+        }
+
+        buffer
+    }
 
     //TODO
     //pub fn read(buffer: Vec<u8>) -> Block {

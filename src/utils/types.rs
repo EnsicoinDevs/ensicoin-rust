@@ -162,6 +162,13 @@ pub struct InvVect {
     hash        : Vec<u8>
 }
 impl InvVect {
+    pub fn from_vec(array: Vec<u8>, hash_type: u32) -> InvVect {
+        InvVect {
+            hash_type:  hash_type,
+            hash:       array
+        }
+    }
+
     pub fn send(mut self) -> Vec<u8> {
         let mut buffer = Vec::new();
         let mut h_type = serialize(&self.hash_type).unwrap();
