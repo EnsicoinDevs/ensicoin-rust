@@ -1,17 +1,17 @@
-use utils::types::*;
-use utils::hash;
-use utils::error::Error;
+use bincode::{deserialize, serialize};
+use model::message::Size;
 use model::transaction;
 use sha2::{Digest, Sha256};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use bincode::{serialize, deserialize};
-
+use utils::error::Error;
+use utils::hash;
+use utils::types::*;
 
 #[derive(Debug)]
 pub struct Block {
     pub version: u32,
-    pub flags: Vec<String>,
+    pub flags: Vec<VarStr>,
     pub previous_hash: Vec<u8>,
     pub merkle_root: Vec<u8>,
     pub timestamp: u64,
@@ -138,7 +138,7 @@ impl Block {
         let nb_flags = VarUint::from_u64(self.flags.len() as u64);
         buffer.append(&mut nb_flags.send());
         for s in &self.flags {
-            buffer.append(&mut VarStr::from_string(s.to_string()).send());
+            buffer.append(&mut s.send());
         }
 
         buffer.append(&mut self.previous_hash.clone());
@@ -177,8 +177,69 @@ impl Block {
         buffer
     }
 
-    //TODO
-    //pub fn read(buffer: Vec<u8>) -> Block {
-    //
-    //}
+    pub fn read(mut buffer: Vec<u8>) -> Block {
+        let mut version = buffer[0..4].to_vec();
+        version.reverse();
+        let version: u32 = deserialize(&version).unwrap();
+
+        let flags_count = VarUint::new(&buffer[4..].to_vec());
+        let mut flags = Vec::new();
+        let mut offset: usize = 4 + flags_count.size() as usize;
+        for _ in 0..flags_count.value {
+            let s = VarStr::new(&buffer[offset..].to_vec());
+            offset += s.size() as usize;
+            flags.push(s);
+        }
+
+        let prev_block = buffer[offset..offset + 32].to_vec();
+        offset += 32;
+
+        let merkle_root = buffer[offset..offset + 32].to_vec();
+        offset += 32;
+
+        let mut timestamp = buffer[offset..offset + 8].to_vec();
+        timestamp.reverse();
+        let timestamp = deserialize(&timestamp).unwrap();
+        offset += 8;
+
+        let mut height = buffer[offset..offset + 4].to_vec();
+        height.reverse();
+        let height = deserialize(&height).unwrap();
+        offset += 4;
+
+        let mut target = buffer[offset..offset + 4].to_vec();
+        target.reverse();
+        let target = deserialize(&target).unwrap();
+        offset += 4;
+
+        let mut nonce = buffer[offset..offset + 8].to_vec();
+        nonce.reverse();
+        let nonce = deserialize(&nonce).unwrap();
+        offset += 8;
+
+        let tx_count = VarUint::new(&buffer[offset..].to_vec());
+        offset += tx_count.size() as usize;
+
+        let mut txs = Vec::new();
+        for _ in 0..tx_count.value {
+            let tx = transaction::Transaction::read(&buffer[offset..].to_vec());
+            offset += tx.size() as usize;
+            txs.push(tx);
+        }
+
+        let mut b = Block {
+            version: version,
+            flags: flags,
+            previous_hash: prev_block.to_vec(),
+            merkle_root: merkle_root.to_vec(),
+            timestamp: timestamp,
+            height: height,
+            difficulty: target,
+            nonce: nonce,
+            transactions: txs,
+            hash: Vec::new(),
+        };
+        b.hash = hash::hash(b.send_header().unwrap());
+        b
+    }
 }

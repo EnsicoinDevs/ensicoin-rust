@@ -120,7 +120,7 @@ pub struct Inv {
     inventory   : Vec<InvVect>
 }
 impl Inv {
-    pub fn send(mut self) -> Vec<u8> {
+    pub fn send(self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.append(&mut self.count.send());
         for i in self.inventory {

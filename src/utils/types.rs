@@ -68,7 +68,7 @@ impl Size for Address {
 #[derive(Clone)]
 pub struct VarUint {
     size    : u8,
-    value   : u64
+    pub value   : u64
 } impl VarUint {
     pub fn new(payload : &Vec<u8>) -> VarUint {
         let mut size = payload[0];
@@ -121,7 +121,7 @@ impl Size for VarUint {
 #[derive(Clone)]
 pub struct VarStr {
     size    : VarUint,
-    value   : String
+    pub value   : String
 } impl VarStr {
     pub fn new(payload : &Vec<u8>) -> VarStr {
         let length : VarUint = VarUint::new(payload);
