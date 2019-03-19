@@ -9,6 +9,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate sled;
 extern crate dirs;
+mod mempool;
 mod utils;
 mod blockchain;
 mod model;

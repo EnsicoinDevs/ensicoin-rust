@@ -1,5 +1,5 @@
-use sled::Db;
 use model::block::Block;
+use sled::Db;
 
 pub struct Blockchain;
 
@@ -9,11 +9,11 @@ impl Blockchain {
     }
 
     /*****************
-    * CRUD METHODS  *
-    *****************/
+     * CRUD METHODS  *
+     *****************/
     //TODO
-    // pub fn get_block(&self, hash: String) -> Block {
-    //     let db = Blockchain::open();
-    //     &*db.get(hash).unwrap().unwrap()
-    // }
+    pub fn get_block(&self, hash: String) -> Block {
+        let db = Blockchain::open();
+        Block::read((&*db.get(hash).unwrap().unwrap()).to_vec())
+    }
 }

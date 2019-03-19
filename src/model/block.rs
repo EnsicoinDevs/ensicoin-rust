@@ -1,7 +1,6 @@
 use bincode::{deserialize, serialize};
 use model::message::Size;
 use model::transaction;
-use sha2::{Digest, Sha256};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use utils::error::Error;

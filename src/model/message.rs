@@ -12,6 +12,10 @@ pub enum ServerMessage {
     CreatePeer(IpAddr),
     AddPeer(mpsc::Sender<ServerMessage>, IpAddr),
     DeletePeer(IpAddr),
+
+    CheckTxs(mpsc::Sender<ServerMessage>, Vec<Vec<u8>>),
+    AskTxs(Vec<Vec<u8>>),
+
     CloseConnection,
     ClosePeer(IpAddr),
     CloseServer,
@@ -116,10 +120,27 @@ impl Size for WhoAmI {
 }
 // inv or getdata or notfound message
 pub struct Inv {
-    count       : VarUint,
-    inventory   : Vec<InvVect>
+    pub count       : VarUint,
+    pub inventory   : Vec<InvVect>
 }
 impl Inv {
+    pub fn read(buffer: &Vec<u8>) -> Inv {
+        let count = VarUint::new(&buffer[..].to_vec());
+        let mut offset : usize = count.size() as usize;
+
+        let mut inventory = Vec::new();
+        for _ in 0..count.value {
+            let inv = InvVect::read(&buffer[offset..].to_vec());
+            offset += inv.size() as usize;
+            inventory.push(inv);
+        }
+
+        Inv {
+            count:      count,
+            inventory:  inventory
+        }
+    }
+
     pub fn send(self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.append(&mut self.count.send());
@@ -128,6 +149,7 @@ impl Inv {
         }
         buffer
     }
+
 }
 impl Size for Inv {
     fn size(&self) -> u64 {

@@ -22,3 +22,9 @@ impl From<std::string::FromUtf8Error> for Error {
         Error::ParseError("String from byte array failed".to_string())
     }
 }
+
+impl<T> From<std::sync::mpsc::SendError<T>> for Error {
+    fn from(_e: std::sync::mpsc::SendError<T>) -> Error {
+        Error::ConnectionClosed
+    }
+}

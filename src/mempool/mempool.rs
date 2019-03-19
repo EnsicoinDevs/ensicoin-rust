@@ -1,0 +1,37 @@
+use std::collections::HashMap;
+use model::transaction::*;
+
+pub struct Mempool {
+    pub txs                 : HashMap<Vec<u8>, Transaction>,
+    pub orphans             : HashMap<Vec<u8>, Transaction>,
+    pub outpoints           : HashMap<Vec<u8>, Outpoint>,
+    pub orphans_outpoints   : HashMap<Vec<u8>, Outpoint>
+}
+impl Mempool {
+    pub fn new() -> Mempool {
+        Mempool {
+            txs                 : HashMap::new(),
+            orphans             : HashMap::new(),
+            outpoints           : HashMap::new(),
+            orphans_outpoints   : HashMap::new()
+        }
+    }
+
+    // tx is not in self.txs and not in self.orphans
+    pub fn add_tx(&mut self, tx: Transaction) -> () {
+        for input in &tx.inputs {
+            if !self.txs.contains_key(&input.previous_output.hash) {
+                self.orphans.insert(tx.hash(), tx.clone());
+                self.orphans_outpoints.insert(input.previous_output.hash.clone(), input.previous_output.clone());
+                ()
+            }
+        }
+        //valid tx
+        self.txs.insert(tx.hash(), tx);
+        // check if TxOut of tx are in orphans
+    }
+
+    pub fn contains_tx(&self, hash: Vec<u8>) -> bool {
+        self.txs.contains_key(&hash) || self.orphans.contains_key(&hash)
+    }
+}

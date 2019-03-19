@@ -6,6 +6,7 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::collections::HashMap;
+use mempool::mempool::Mempool;
 use model::message;
 use server::peer::Peer;
 use rpc;
@@ -17,6 +18,7 @@ pub struct Server {
         peers           : HashMap<IpAddr, mpsc::Sender<message::ServerMessage>>,
         sender          : mpsc::Sender<message::ServerMessage>,
         receiver        : mpsc::Receiver<message::ServerMessage>,
+        mempool         : Mempool,
 }
 
 impl Server {
@@ -30,6 +32,7 @@ impl Server {
             peers           : HashMap::new(),
             sender          : tx,
             receiver        : rx,
+            mempool         : Mempool::new()
         }
     }
 
@@ -102,6 +105,7 @@ impl Server {
                     if self.peers.contains_key(&ip) {
                         self.peers.remove(&ip);
                     }
+                    println!("peer deleted: {}", &ip);
                 },
                 message::ServerMessage::ClosePeer(ip) => {
                     if self.peers.contains_key(&ip) {
@@ -114,6 +118,15 @@ impl Server {
                         drop(&self.listener);
                     }
                     panic!("Ensicoin stopped");
+                },
+                message::ServerMessage::CheckTxs(sender, hashes) => {
+                    let mut inventory = Vec::new();
+                    for hash in hashes {
+                        if !self.mempool.contains_tx(hash.to_vec()) {
+                            inventory.push(hash.to_vec());
+                        }
+                    }
+                    sender.send(message::ServerMessage::AskTxs(inventory)).unwrap();
                 },
                 _ => ()
             }

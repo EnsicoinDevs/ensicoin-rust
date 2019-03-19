@@ -4,7 +4,7 @@ use model::message::Size;
 use utils::hash;
 use utils::types::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Outpoint {
     pub hash: Vec<u8>,
     pub index: u32,
@@ -38,7 +38,7 @@ impl Size for Outpoint {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxIn {
     pub previous_output: Outpoint,
     pub script: VarStr,
@@ -68,7 +68,7 @@ impl Size for TxIn {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxOut {
     pub value: u64,
     pub script: VarStr,
@@ -105,7 +105,7 @@ impl Size for TxOut {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
     pub version: u32,
     pub flags_count: VarUint,

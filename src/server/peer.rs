@@ -1,7 +1,6 @@
 use bincode::serialize;
 use bincode::deserialize;
-use model::message::WhoAmI;
-use model::message::ServerMessage;
+use model::message::*;
 use std::net::TcpStream;
 use std::io::prelude::*;
 use utils::error::Error;
@@ -67,7 +66,7 @@ pub struct Peer {
                 "whoamiack\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
-                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap().ip())).unwrap();
+                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap().ip().clone()))?;
                         println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
@@ -83,13 +82,24 @@ pub struct Peer {
         }
         else {
             match message_type.as_str() {
-                "2plus2is4" => {
+                "2plus2is4\u{0}\u{0}\u{0}" => {
+                    println!("2 plus 2 is 4!");
                     let message = self.prepare_header("minus1thats3".to_string(), 0)?;
                     self.send(message);
                 },
-                "getaddr" => {},
-                "addr" => {},
-                _ => ()
+                "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
+                    let message = Inv::read(&payload);
+                    println!("Received Inv message with {} items", &message.count.value);
+                    let mut txs = Vec::new();
+                    for item in message.inventory {
+                        if item.hash_type == 0 { //TX
+                            txs.push(item.hash);
+                        }
+                    }
+                    self.server_sender.send(ServerMessage::CheckTxs(self.sender.clone(), txs))?;
+                },
+                "addr\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {},
+                _ => { println!("didn't understand message type"); }
             }
         }
         Ok(())
@@ -102,6 +112,21 @@ pub struct Peer {
                 Ok(m)    => {
                     match m {
                         ServerMessage::CloseConnection  => { self.close().unwrap(); },
+                        ServerMessage::AskTxs(hashes)   => {
+                            //construct invvect and send it
+                            let mut inventory = Vec::new();
+                            let length = hashes.len();
+                            for hash in hashes {
+                                inventory.push(::utils::types::InvVect::from_vec(hash, 0));
+                            }
+                            let message = Inv {
+                                count: ::utils::types::VarUint::from_u64(length as u64),
+                                inventory: inventory
+                            };
+                            let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();
+                            buffer.append(&mut message.send());
+                            self.send(buffer);
+                        },
                         _                               => ()
                     }
                 },
@@ -115,6 +140,7 @@ pub struct Peer {
                 Err(e) => { match e {
                                 Error::IOError(e) => {
                                     if e.kind() == std::io::ErrorKind::WouldBlock {
+                                        println!("nothing to read");
                                         ()
                                     } else {
                                         println!("{:?}", e); break;
