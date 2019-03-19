@@ -115,7 +115,7 @@ pub struct WhoAmI {
 }
 impl Size for WhoAmI {
     fn size(&self) -> u64 {
-        8 + self.from.size() + self.service_count.size() + self.services.size()
+        4 + self.from.size() + self.service_count.size() + self.services.size()
     }
 }
 // inv or getdata or notfound message

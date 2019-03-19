@@ -41,9 +41,10 @@ impl Server {
         let sender = self.sender.clone();
         thread::spawn(move || {
             for stream in listener.incoming() {
+                println!("Incoming peer");
                 let mut stream = stream.unwrap().try_clone().unwrap();
                 let sender2 = sender.clone();
-                thread::Builder::new().name(stream.peer_addr().unwrap().ip().to_string()).spawn(move || {
+                thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
                     Peer::new(stream, sender2, false).update();
                 }).unwrap();
             }
@@ -90,10 +91,14 @@ impl Server {
                     if !self.peers.contains_key(&ip) {
                         let sender = self.sender.clone();
                         let ip = *ip;
-                        let stream = TcpStream::connect(std::net::SocketAddr::new(ip, 4224)).unwrap();
-                        thread::Builder::new().name(ip.to_string()).spawn( move || {
-                            Peer::new(stream, sender, true).connect();
-                        }).unwrap();
+                        match TcpStream::connect(std::net::SocketAddr::new(ip, 4224)) {
+                            Ok(tcp) => {
+                                thread::Builder::new().name(ip.to_string()).spawn( move || {
+                                Peer::new(tcp, sender, true).connect();
+                            }).unwrap(); ()},
+                            Err(e) => println!("{}", e),
+                        }
+
                     } else {
                         println!("Already connected to peer");
                     }

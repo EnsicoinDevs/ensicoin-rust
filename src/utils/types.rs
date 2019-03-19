@@ -113,13 +113,19 @@ impl VarUint {
         let mut buffer = Vec::new();
         let mut v: Vec<u8>;
         match self.size {
-            2 => v = serialize(&(self.value as u16)).unwrap(),
-            4 => v = serialize(&(self.value as u32)).unwrap(),
-            8 => v = serialize(&self.value).unwrap(),
+            1 => v = serialize(&(self.value as u8)).unwrap(),
+            2 => {
+                buffer.push(0xFD);
+                v = serialize(&(self.value as u16)).unwrap();},
+            4 => {
+                buffer.push(0xFE);
+                v = serialize(&(self.value as u32)).unwrap();},
+            8 => {
+                buffer.push(0xFF);
+                v = serialize(&self.value).unwrap();},
             _ => panic!(),
         }
         v.reverse();
-        buffer.push(self.size);
         buffer.append(&mut v);
         buffer
     }

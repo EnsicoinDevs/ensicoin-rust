@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use utils::error::Error;
 use std::sync::mpsc;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum State {
     Tcp,
     WhoAmI,
@@ -50,7 +50,6 @@ pub struct Peer {
         length.reverse();
         let length : u64 = deserialize(&length)?;
         let payload = self.read_payload(length as usize)?;
-
         if self.connection_state != State::Acknowledged {
             match message_type.as_str() {
                 "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
@@ -66,7 +65,7 @@ pub struct Peer {
                 "whoamiack\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
-                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap().ip().clone()))?;
+                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), (&self.stream.peer_addr().unwrap().ip()).clone()))?;
                         println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
@@ -140,7 +139,7 @@ pub struct Peer {
                 Err(e) => { match e {
                                 Error::IOError(e) => {
                                     if e.kind() == std::io::ErrorKind::WouldBlock {
-                                        println!("nothing to read");
+                                        // println!("nothing to read");
                                         ()
                                     } else {
                                         println!("{:?}", e); break;
