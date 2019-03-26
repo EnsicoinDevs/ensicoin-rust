@@ -65,7 +65,7 @@ pub struct Peer {
                 "whoamiack\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
-                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), (&self.stream.peer_addr().unwrap().ip()).clone()))?;
+                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), (&self.stream.peer_addr().unwrap()).clone()))?;
                         println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
@@ -89,16 +89,28 @@ pub struct Peer {
                 "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let message = Inv::read(&payload);
                     println!("Received Inv message with {} items", &message.count.value);
+                    dbg!(&message);
                     let mut txs = Vec::new();
+                    let mut blocks = Vec::new();
                     for item in message.inventory {
                         if item.hash_type == 0 { //TX
                             txs.push(item.hash);
+                        } else {
+                            blocks.push(item.hash);
                         }
                     }
-                    self.server_sender.send(ServerMessage::CheckTxs(self.sender.clone(), txs))?;
+                    if txs.len() > 0 {
+                        self.server_sender.send(ServerMessage::CheckTxs(self.sender.clone(), txs))?;
+                    }
+                    if blocks.len() > 0 {
+                        // check blocks
+                    }
                 },
-                "addr\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {},
-                _ => { println!("didn't understand message type"); }
+                "getblocks\u{0}\u{0}\u{0}" => {
+                    let message = GetBlocks::read(&payload);
+                    self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
+                },
+                _ => { println!("didn't understand message type: {}", message_type); }
             }
         }
         Ok(())
@@ -126,6 +138,12 @@ pub struct Peer {
                             buffer.append(&mut message.send());
                             self.send(buffer);
                         },
+                        ServerMessage::GetBlocksReply(hashs) => {
+                            let inv = Inv::from_vec(hashs);
+                            let mut message = self.prepare_header("inv".to_string(), inv.size()).unwrap();
+                            message.append(&mut inv.send());
+                            self.send(message);
+                        }
                         _                               => ()
                     }
                 },
@@ -161,7 +179,7 @@ pub struct Peer {
         }
 
     fn close(&self) -> Result<(), Error>{
-        self.server_sender.send(ServerMessage::DeletePeer(self.stream.peer_addr().unwrap().ip())).unwrap();
+        self.server_sender.send(ServerMessage::DeletePeer(self.stream.peer_addr().unwrap())).unwrap();
         self.stream.shutdown(std::net::Shutdown::Both)?;
         Err(Error::ConnectionClosed)
     }

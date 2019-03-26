@@ -25,7 +25,7 @@ impl Block {
     /**
      *  création du bloc génésis qui n'a pas de previous hash et a pour index 0
      **/
-    pub fn genesis_block() -> Block {
+    pub fn genesis_block() -> Result<Block, Error> {
         let mut time = 0;
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(elapsed) => {
@@ -47,14 +47,14 @@ impl Block {
             transactions: Vec::new(),
             hash: Vec::new(),
         };
-        b.hash = b.hash();
-        b
+        b.hash = b.hash()?;
+        Ok(b)
     }
 
     /**
      *  créer un nouveau bloc à l'aide du hash du bloc dernier bloc contenu dans la chaîne
      **/
-    pub fn new(latest_block: &Block) -> Block {
+    pub fn new(latest_block: &Block) -> Result<Block, Error> {
         let mut time = 0;
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(elapsed) => time = elapsed.as_secs(),
@@ -72,30 +72,30 @@ impl Block {
             transactions: Vec::new(),
             hash: Vec::new(),
         };
-        block.hash = block.hash();
-        block
+        block.hash = block.hash()?;
+        Ok(block)
     }
 
     /**
      *  transforme les hash du tableau de transactions en chaîne de caractères
      **/
-    fn hash_transactions(&self) -> Vec<u8> {
+    fn hash_transactions(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
 
         for tx in &self.transactions {
-            buffer.append(&mut tx.hash());
+            buffer.append(&mut tx.hash()?);
         }
 
-        buffer
+        Ok(buffer)
     }
 
     /**
      *  calcule le hash d'un bloc
      **/
-    pub fn hash(&self) -> Vec<u8> {
-        let block = self.send_header().unwrap();
+    pub fn hash(&self) -> Result<Vec<u8>, Error> {
+        let block = self.send_header()?;
         let result = hash::hash(block);
-        hash::hash(result)
+        Ok(hash::hash(result))
     }
 
     pub fn is_valid(block: &Block) -> bool {
@@ -127,7 +127,7 @@ impl Block {
         true
     }
 
-    //TODO
+
     pub fn send_header(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
         let mut version = serialize(&self.version)?;
@@ -162,24 +162,30 @@ impl Block {
         Ok(buffer)
     }
 
-    pub fn send_tx(&self) -> Vec<u8> {
+    pub fn send_tx(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
 
-        let mut tx_count = serialize(&self.transactions.len()).unwrap();
+        let mut tx_count = serialize(&self.transactions.len())?;
         tx_count.reverse();
         buffer.append(&mut tx_count);
 
         for tx in &self.transactions {
-            buffer.append(&mut tx.send());
+            buffer.append(&mut tx.send()?);
         }
 
-        buffer
+        Ok(buffer)
     }
 
-    pub fn read(mut buffer: Vec<u8>) -> Block {
+    pub fn send(&self) -> Result<Vec<u8>, Error> {
+        let mut buffer = self.send_header()?;
+        buffer.append(&mut self.send_tx()?);
+        Ok(buffer)
+    }
+
+    pub fn read(buffer: Vec<u8>) -> Result<Block, Error> {
         let mut version = buffer[0..4].to_vec();
         version.reverse();
-        let version: u32 = deserialize(&version).unwrap();
+        let version: u32 = deserialize(&version)?;
 
         let flags_count = VarUint::new(&buffer[4..].to_vec());
         let mut flags = Vec::new();
@@ -198,22 +204,22 @@ impl Block {
 
         let mut timestamp = buffer[offset..offset + 8].to_vec();
         timestamp.reverse();
-        let timestamp = deserialize(&timestamp).unwrap();
+        let timestamp = deserialize(&timestamp)?;
         offset += 8;
 
         let mut height = buffer[offset..offset + 4].to_vec();
         height.reverse();
-        let height = deserialize(&height).unwrap();
+        let height = deserialize(&height)?;
         offset += 4;
 
         let mut target = buffer[offset..offset + 4].to_vec();
         target.reverse();
-        let target = deserialize(&target).unwrap();
+        let target = deserialize(&target)?;
         offset += 4;
 
         let mut nonce = buffer[offset..offset + 8].to_vec();
         nonce.reverse();
-        let nonce = deserialize(&nonce).unwrap();
+        let nonce = deserialize(&nonce)?;
         offset += 8;
 
         let tx_count = VarUint::new(&buffer[offset..].to_vec());
@@ -238,7 +244,13 @@ impl Block {
             transactions: txs,
             hash: Vec::new(),
         };
-        b.hash = hash::hash(b.send_header().unwrap());
-        b
+        b.hash = hash::hash(b.send_header()?);
+        Ok(b)
+    }
+}
+
+impl Size for Block {
+    fn size(&self) -> u64 {
+        1
     }
 }

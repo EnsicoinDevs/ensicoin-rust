@@ -1,3 +1,4 @@
+#![feature(try_trait)]
 #[macro_use]
 extern crate clap;
 extern crate sha2;

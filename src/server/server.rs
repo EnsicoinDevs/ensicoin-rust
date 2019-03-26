@@ -1,24 +1,26 @@
 use std::net::SocketAddr;
-use std::net::IpAddr;
 use std::net::TcpStream;
 use std::net;
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::collections::HashMap;
+use blockchain::blockchain::*;
 use mempool::mempool::Mempool;
 use model::message;
 use server::peer::Peer;
+use server::known_peers::KnownPeers;
 use rpc;
 use rpc::discover_grpc::Discover;
 
 pub struct Server {
     pub listener        : net::TcpListener,
     pub server_version  : Arc<u32>,
-        peers           : HashMap<IpAddr, mpsc::Sender<message::ServerMessage>>,
+        peers           : HashMap<SocketAddr, mpsc::Sender<message::ServerMessage>>,
         sender          : mpsc::Sender<message::ServerMessage>,
         receiver        : mpsc::Receiver<message::ServerMessage>,
         mempool         : Mempool,
+        blockchain      : Blockchain,
 }
 
 impl Server {
@@ -32,11 +34,17 @@ impl Server {
             peers           : HashMap::new(),
             sender          : tx,
             receiver        : rx,
-            mempool         : Mempool::new()
+            mempool         : Mempool::new(),
+            blockchain      : Blockchain,
         }
     }
 
     pub fn listen(&mut self) {
+        let sender = self.sender.clone();
+        thread::spawn(move || {
+            peer_routine(sender);
+        });
+
         let listener = self.listener.try_clone().unwrap();
         let sender = self.sender.clone();
         thread::spawn(move || {
@@ -91,7 +99,7 @@ impl Server {
                     if !self.peers.contains_key(&ip) {
                         let sender = self.sender.clone();
                         let ip = *ip;
-                        match TcpStream::connect(std::net::SocketAddr::new(ip, 4224)) {
+                        match TcpStream::connect(ip) {
                             Ok(tcp) => {
                                 thread::Builder::new().name(ip.to_string()).spawn( move || {
                                 Peer::new(tcp, sender, true).connect();
@@ -105,6 +113,10 @@ impl Server {
                 },
                 message::ServerMessage::AddPeer(sender, ip) => {
                     self.peers.insert(*ip, sender.clone());
+                    match KnownPeers.add_peer((*ip).to_string()) {
+                        Ok(_) => (),
+                        Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
+                    }
                 },
                 message::ServerMessage::DeletePeer(ip) => {
                     if self.peers.contains_key(&ip) {
@@ -133,18 +145,48 @@ impl Server {
                     }
                     sender.send(message::ServerMessage::AskTxs(inventory)).unwrap();
                 },
+                message::ServerMessage::GetBlocks(sender, message) => {
+                    let mut hashs = Vec::new();
+                    for hash in &message.block_locator {
+                        match self.blockchain.get_block(&hash) {
+                            Ok(b) => {
+                                let mut hash = b.hash().unwrap();
+                                while let Ok(h) = NextHash::get_next_hash(&hash) {
+                                    hashs.push((h.clone(), 1));
+                                    if h == message.hash_stop {
+                                        break;
+                                    }
+                                    hash = h;
+                                }
+                                break;
+                            },
+                            Err(_) => ()
+                        }
+                    }
+                    if hashs.len() > 0 {
+                        sender.send(message::ServerMessage::GetBlocksReply(hashs)).unwrap();
+                    }
+                    //maybe send entire blockchain otherwise?
+                },
                 _ => ()
             }
         }
     }
+
 }
 
-struct DiscoverImpl;
+struct DiscoverImpl {
+    peers: KnownPeers
+}
 impl Discover for DiscoverImpl {
     fn discover_peer(&self, _o: ::grpc::RequestOptions, p: rpc::discover::NewPeer) -> ::grpc::SingleResponse<rpc::discover::Ok> {
-        let _ip : SocketAddr = p.get_address().parse().unwrap();
+        let ip : SocketAddr = p.get_address().parse().unwrap();
         //check known peer db
         println!("Received peer");
+        match self.peers.add_peer(ip.to_string()) {
+            Ok(_) => (),
+            Err(_) => { println!("failed to add peer"); }
+        }
         ::grpc::SingleResponse::completed(rpc::discover::Ok::new())
     }
 }
@@ -153,7 +195,7 @@ fn launch_discovery_server() {
     thread::spawn(move || {
         let mut server = grpc::ServerBuilder::new_plain();
         server.http.set_port(2442);
-        server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl));
+        server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl{peers: KnownPeers}));
         let _server = server.build().expect("server");
 
         println!("discovery server started on port {}", 2442);
@@ -162,4 +204,16 @@ fn launch_discovery_server() {
             std::thread::park();
         }
     });
+}
+
+fn peer_routine(sender: std::sync::mpsc::Sender<message::ServerMessage>) {
+    let db = KnownPeers;
+    loop {
+        let peers = db.get_peers().unwrap();
+        for p in peers {
+            sender.send(message::ServerMessage::CreatePeer(p.parse().unwrap())).unwrap();
+        }
+
+        thread::sleep(std::time::Duration::from_secs(180));
+    }
 }

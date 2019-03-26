@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::SocketAddr;
 use std::cmp::min;
 use bincode::{serialize, deserialize};
 use std::net::TcpStream;
@@ -9,15 +9,18 @@ use utils::types::*;
 //server messages
 #[derive(Debug)]
 pub enum ServerMessage {
-    CreatePeer(IpAddr),
-    AddPeer(mpsc::Sender<ServerMessage>, IpAddr),
-    DeletePeer(IpAddr),
+    CreatePeer(SocketAddr),
+    AddPeer(mpsc::Sender<ServerMessage>, SocketAddr),
+    DeletePeer(SocketAddr),
 
     CheckTxs(mpsc::Sender<ServerMessage>, Vec<Vec<u8>>),
     AskTxs(Vec<Vec<u8>>),
 
+    GetBlocks(mpsc::Sender<ServerMessage>, GetBlocks),
+    GetBlocksReply(Vec<(Vec<u8>, u32)>),
+
     CloseConnection,
-    ClosePeer(IpAddr),
+    ClosePeer(SocketAddr),
     CloseServer,
 }
 
@@ -119,13 +122,29 @@ impl Size for WhoAmI {
     }
 }
 // inv or getdata or notfound message
+#[derive(Debug)]
 pub struct Inv {
     pub count       : VarUint,
     pub inventory   : Vec<InvVect>
 }
 impl Inv {
+
+    pub fn from_vec(hashs: Vec<(Vec<u8>, u32)>) -> Inv {
+        let count = VarUint::from_u64(hashs.len() as u64);
+        let mut inventory = Vec::new();
+        for hash in hashs {
+            inventory.push(InvVect::from_vec(hash.0, hash.1));
+        }
+
+        Inv {
+            count: count,
+            inventory: inventory
+        }
+    }
+
     pub fn read(buffer: &Vec<u8>) -> Inv {
-        let count = VarUint::new(&buffer[..].to_vec());
+        dbg!(&buffer);
+        let count = VarUint::new(buffer);
         let mut offset : usize = count.size() as usize;
 
         let mut inventory = Vec::new();
@@ -154,5 +173,44 @@ impl Inv {
 impl Size for Inv {
     fn size(&self) -> u64 {
         self.count.size() + 36 * (self.inventory.len() as u64)
+    }
+}
+
+#[derive(Debug)]
+pub struct GetBlocks {
+    pub count           : VarUint,
+    pub block_locator   : Vec<Vec<u8>>,
+    pub hash_stop       : Vec<u8>
+}
+impl GetBlocks {
+    pub fn read(buffer: &Vec<u8>) -> GetBlocks {
+        let count = VarUint::new(buffer);
+        let mut offset : usize = count.size() as usize;
+
+        let mut block_locator = Vec::new();
+        for _ in 0..count.value {
+            block_locator.push(buffer[offset..offset+32].to_vec());
+            offset += 32;
+        }
+        let hash_stop = buffer[offset..offset+32].to_vec();
+
+        GetBlocks {
+            count: count,
+            block_locator: block_locator,
+            hash_stop: hash_stop
+        }
+    }
+
+    pub fn send(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+
+        buffer.append(&mut self.count.send());
+
+        for hash in &self.block_locator {
+            buffer.append(&mut hash.clone());
+        }
+        buffer.append(&mut self.hash_stop.clone());
+
+        buffer
     }
 }

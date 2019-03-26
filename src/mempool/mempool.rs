@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use model::transaction::*;
+use utils::error::Error;
 
 pub struct Mempool {
     pub txs                 : HashMap<Vec<u8>, Transaction>,
@@ -18,17 +19,18 @@ impl Mempool {
     }
 
     // tx is not in self.txs and not in self.orphans
-    pub fn add_tx(&mut self, tx: Transaction) -> () {
+    pub fn add_tx(&mut self, tx: Transaction) -> Result<(), Error> {
         for input in &tx.inputs {
             if !self.txs.contains_key(&input.previous_output.hash) {
-                self.orphans.insert(tx.hash(), tx.clone());
+                self.orphans.insert(tx.hash()?, tx.clone());
                 self.orphans_outpoints.insert(input.previous_output.hash.clone(), input.previous_output.clone());
                 ()
             }
         }
         //valid tx
-        self.txs.insert(tx.hash(), tx);
+        self.txs.insert(tx.hash()?, tx);
         // check if TxOut of tx are in orphans
+        Ok(())
     }
 
     pub fn contains_tx(&self, hash: Vec<u8>) -> bool {

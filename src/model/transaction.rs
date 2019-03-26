@@ -2,6 +2,7 @@ use bincode::deserialize;
 use bincode::serialize;
 use model::message::Size;
 use utils::hash;
+use utils::error::Error;
 use utils::types::*;
 
 #[derive(Debug, Clone)]
@@ -11,13 +12,13 @@ pub struct Outpoint {
 }
 
 impl Outpoint {
-    pub fn send(&self) -> Vec<u8> {
+    pub fn send(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = self.hash.clone();
-        let mut index = serialize(&self.index).unwrap();
+        let mut index = serialize(&self.index)?;
         index.reverse();
         buffer.append(&mut index);
 
-        buffer
+        Ok(buffer)
     }
 
     pub fn read(buffer: &Vec<u8>) -> Outpoint {
@@ -45,11 +46,11 @@ pub struct TxIn {
 }
 
 impl TxIn {
-    pub fn send(&self) -> Vec<u8> {
-        let mut buffer = self.previous_output.send();
+    pub fn send(&self) -> Result<Vec<u8>, Error> {
+        let mut buffer = self.previous_output.send()?;
         buffer.append(&mut self.script.send());
 
-        buffer
+        Ok(buffer)
     }
 
     pub fn read(buffer: &Vec<u8>) -> TxIn {
@@ -117,15 +118,15 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn hash(&self) -> Vec<u8> {
-        let buffer = self.send();
+    pub fn hash(&self) -> Result<Vec<u8>, Error> {
+        let buffer = self.send()?;
 
-        hash::hash(hash::hash(buffer))
+        Ok(hash::hash(hash::hash(buffer)))
     }
 
-    pub fn send(&self) -> Vec<u8> {
+    pub fn send(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
-        let mut version = serialize(&self.version).unwrap();
+        let mut version = serialize(&self.version)?;
         version.reverse();
         buffer.append(&mut version);
 
@@ -136,7 +137,7 @@ impl Transaction {
 
         buffer.append(&mut self.inputs_count.send());
         for input in &self.inputs {
-            buffer.append(&mut input.send());
+            buffer.append(&mut input.send()?);
         }
 
         buffer.append(&mut self.outputs_count.send());
@@ -144,7 +145,7 @@ impl Transaction {
             buffer.append(&mut output.send());
         }
 
-        buffer
+        Ok(buffer)
     }
 
     pub fn read(buffer: &Vec<u8>) -> Transaction {

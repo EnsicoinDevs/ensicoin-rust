@@ -132,7 +132,7 @@ impl VarUint {
 }
 impl Size for VarUint {
     fn size(&self) -> u64 {
-        (1 + self.size).into()
+        self.size.into()
     }
 }
 
@@ -172,6 +172,7 @@ impl Size for VarStr {
     }
 }
 
+#[derive(Debug)]
 pub struct InvVect {
     pub hash_type: u32,
     pub hash: Vec<u8>,
@@ -186,12 +187,13 @@ impl InvVect {
 
     pub fn read(buffer: &Vec<u8>) -> InvVect {
         let mut hash_type = buffer[0..4].to_vec();
+        dbg!(&hash_type);
         hash_type.reverse();
         let hash_type : u32 = deserialize(&hash_type).unwrap();
 
         InvVect {
             hash_type: hash_type,
-            hash:   buffer[4..36].to_vec()
+            hash:   buffer[4..35].to_vec()
         }
     }
 
