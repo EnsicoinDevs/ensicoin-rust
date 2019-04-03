@@ -21,20 +21,20 @@ impl Blockchain {
 
     pub fn get_block(&self, hash: &Vec<u8>) -> Result<Block, Error> {
         let db = Blockchain::open()?;
-        Ok(Block::read((&*db.get(hash)??).to_vec())?)
+        Ok(Block::read(&(&*db.get(hash)??).to_vec())?)
     }
 
     pub fn get_blocks(&self) -> Result<Vec<Block>, Error> {
         let db = Blockchain::open()?;
-        db.iter().map( |x| Block::read(x.unwrap().0) ).collect()
+        db.iter().map( |x| Block::read(&x.unwrap().0) ).collect()
     }
 
-    pub fn insert_block(&self, hash: Vec<u8>, block: Block) -> Result<(), Error> {
+    pub fn insert_block(&self, hash: Vec<u8>, block: &Block) -> Result<(), Error> {
         let db = Blockchain::open()?;
         db.set(hash, block.send()?)?;
         db.flush()?;
         NextHash::insert_next_hash(block.previous_hash.clone(), block.hash()?)?;
-
+        dbg!("hey");
         Ok(())
     }
 

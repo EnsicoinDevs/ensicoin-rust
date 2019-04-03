@@ -5,6 +5,8 @@ use std::net::TcpStream;
 use std::io::prelude::*;
 use std::sync::mpsc;
 use utils::types::*;
+use model::transaction::Transaction;
+use model::block::Block;
 
 //server messages
 #[derive(Debug)]
@@ -13,8 +15,13 @@ pub enum ServerMessage {
     AddPeer(mpsc::Sender<ServerMessage>, SocketAddr),
     DeletePeer(SocketAddr),
 
+    CheckBlocks(mpsc::Sender<ServerMessage>, Vec<Vec<u8>>),
+    AskBlocks(Vec<(Vec<u8>, u32)>),
+    AddBlock(Block),
+
     CheckTxs(mpsc::Sender<ServerMessage>, Vec<Vec<u8>>),
     AskTxs(Vec<Vec<u8>>),
+    AddTx(Transaction),
 
     GetBlocks(mpsc::Sender<ServerMessage>, GetBlocks),
     GetBlocksReply(Vec<(Vec<u8>, u32)>),
@@ -143,7 +150,6 @@ impl Inv {
     }
 
     pub fn read(buffer: &Vec<u8>) -> Inv {
-        dbg!(&buffer);
         let count = VarUint::new(buffer);
         let mut offset : usize = count.size() as usize;
 

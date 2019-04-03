@@ -187,7 +187,6 @@ impl InvVect {
 
     pub fn read(buffer: &Vec<u8>) -> InvVect {
         let mut hash_type = buffer[0..4].to_vec();
-        dbg!(&hash_type);
         hash_type.reverse();
         let hash_type : u32 = deserialize(&hash_type).unwrap();
 

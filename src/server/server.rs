@@ -5,20 +5,20 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::collections::HashMap;
-use blockchain::blockchain::*;
-use mempool::mempool::Mempool;
-use model::message;
-use server::peer::Peer;
-use server::known_peers::KnownPeers;
+use blockchain::*;
+use mempool::Mempool;
+use model::message::*;
+use server::Peer;
+use server::KnownPeers;
 use rpc;
 use rpc::discover_grpc::Discover;
 
 pub struct Server {
     pub listener        : net::TcpListener,
     pub server_version  : Arc<u32>,
-        peers           : HashMap<SocketAddr, mpsc::Sender<message::ServerMessage>>,
-        sender          : mpsc::Sender<message::ServerMessage>,
-        receiver        : mpsc::Receiver<message::ServerMessage>,
+        peers           : HashMap<SocketAddr, mpsc::Sender<ServerMessage>>,
+        sender          : mpsc::Sender<ServerMessage>,
+        receiver        : mpsc::Receiver<ServerMessage>,
         mempool         : Mempool,
         blockchain      : Blockchain,
 }
@@ -72,16 +72,16 @@ impl Server {
                         println!("Enter a valid ip address: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(message::ServerMessage::CreatePeer(ip.parse().unwrap())).unwrap();
+                        sender.send(ServerMessage::CreatePeer(ip.parse().unwrap())).unwrap();
                     },
                     "close\n" => {
                         println!("Enter a peer address to close: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(message::ServerMessage::ClosePeer(ip.parse().unwrap())).unwrap();
+                        sender.send(ServerMessage::ClosePeer(ip.parse().unwrap())).unwrap();
                     },
                     "exit\n" => {
-                        sender.send(message::ServerMessage::CloseServer).unwrap();
+                        sender.send(ServerMessage::CloseServer).unwrap();
                     },
                     _ => ()
                 }
@@ -95,7 +95,7 @@ impl Server {
         loop {
             let message = self.receiver.recv().unwrap();
             match &message {
-                message::ServerMessage::CreatePeer(ip) => {
+                ServerMessage::CreatePeer(ip) => {
                     if !self.peers.contains_key(&ip) {
                         let sender = self.sender.clone();
                         let ip = *ip;
@@ -111,41 +111,41 @@ impl Server {
                         println!("Already connected to peer");
                     }
                 },
-                message::ServerMessage::AddPeer(sender, ip) => {
+                ServerMessage::AddPeer(sender, ip) => {
                     self.peers.insert(*ip, sender.clone());
                     match KnownPeers.add_peer((*ip).to_string()) {
                         Ok(_) => (),
                         Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
                     }
                 },
-                message::ServerMessage::DeletePeer(ip) => {
+                ServerMessage::DeletePeer(ip) => {
                     if self.peers.contains_key(&ip) {
                         self.peers.remove(&ip);
                     }
                     println!("peer deleted: {}", &ip);
                 },
-                message::ServerMessage::ClosePeer(ip) => {
+                ServerMessage::ClosePeer(ip) => {
                     if self.peers.contains_key(&ip) {
-                        self.peers.get(&ip).unwrap().send(message::ServerMessage::CloseConnection).unwrap();
+                        self.peers.get(&ip).unwrap().send(ServerMessage::CloseConnection).unwrap();
                     }
                 },
-                message::ServerMessage::CloseServer => {
+                ServerMessage::CloseServer => {
                     for p in self.peers.values() {
-                        p.send(message::ServerMessage::CloseConnection).unwrap();
+                        p.send(ServerMessage::CloseConnection).unwrap();
                         drop(&self.listener);
                     }
                     panic!("Ensicoin stopped");
                 },
-                message::ServerMessage::CheckTxs(sender, hashes) => {
+                ServerMessage::CheckTxs(sender, hashes) => {
                     let mut inventory = Vec::new();
                     for hash in hashes {
                         if !self.mempool.contains_tx(hash.to_vec()) {
                             inventory.push(hash.to_vec());
                         }
                     }
-                    sender.send(message::ServerMessage::AskTxs(inventory)).unwrap();
+                    sender.send(ServerMessage::AskTxs(inventory)).unwrap();
                 },
-                message::ServerMessage::GetBlocks(sender, message) => {
+                ServerMessage::GetBlocks(sender, message) => {
                     let mut hashs = Vec::new();
                     for hash in &message.block_locator {
                         match self.blockchain.get_block(&hash) {
@@ -164,9 +164,27 @@ impl Server {
                         }
                     }
                     if hashs.len() > 0 {
-                        sender.send(message::ServerMessage::GetBlocksReply(hashs)).unwrap();
+                        sender.send(ServerMessage::GetBlocksReply(hashs)).unwrap();
                     }
                     //maybe send entire blockchain otherwise?
+                },
+                ServerMessage::AddTx(tx) => {
+                    self.mempool.add_tx(tx).unwrap();
+                },
+                ServerMessage::CheckBlocks(sender, hashs) => {
+                    let mut inv = Vec::new();
+                    for hash in hashs {
+                        match self.blockchain.get_block(hash) {
+                            Ok(_) => (),
+                            Err(_) => {
+                                inv.push((hash.clone(), 1));
+                            }
+                        }
+                    }
+                    sender.send(ServerMessage::AskBlocks(inv)).unwrap();
+                },
+                ServerMessage::AddBlock(block) => {
+                    self.blockchain.insert_block(block.hash().unwrap(), block).unwrap();
                 },
                 _ => ()
             }
@@ -206,12 +224,12 @@ fn launch_discovery_server() {
     });
 }
 
-fn peer_routine(sender: std::sync::mpsc::Sender<message::ServerMessage>) {
+fn peer_routine(sender: std::sync::mpsc::Sender<ServerMessage>) {
     let db = KnownPeers;
     loop {
         let peers = db.get_peers().unwrap();
         for p in peers {
-            sender.send(message::ServerMessage::CreatePeer(p.parse().unwrap())).unwrap();
+            sender.send(ServerMessage::CreatePeer(p.parse().unwrap())).unwrap();
         }
 
         thread::sleep(std::time::Duration::from_secs(180));

@@ -1,9 +1,9 @@
 use bincode::{deserialize, serialize};
 use model::message::Size;
-use model::transaction;
+use model::transaction::*;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use utils::error::Error;
+use utils::Error;
 use utils::hash;
 use utils::types::*;
 
@@ -17,7 +17,7 @@ pub struct Block {
     pub height: u32,
     pub difficulty: u64,
     pub nonce: u64,
-    pub transactions: Vec<transaction::Transaction>,
+    pub transactions: Vec<Transaction>,
     pub hash: Vec<u8>,
 }
 
@@ -26,54 +26,53 @@ impl Block {
      *  création du bloc génésis qui n'a pas de previous hash et a pour index 0
      **/
     pub fn genesis_block() -> Result<Block, Error> {
-        let mut time = 0;
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(elapsed) => {
-                time = elapsed.as_secs();
+                let time = elapsed.as_secs();
+                let mut b: Block = Block {
+                    version: 0,
+                    flags: Vec::new(),
+                    previous_hash: vec![0; 32],
+                    merkle_root: Vec::new(),
+                    timestamp: time,
+                    height: 0,
+                    difficulty: 0,
+                    nonce: 0,
+                    transactions: Vec::new(),
+                    hash: Vec::new(),
+                };
+                b.hash = b.hash()?;
+                Ok(b)
             }
             Err(e) => {
                 panic!(e);
             }
         }
-        let mut b: Block = Block {
-            version: 0,
-            flags: Vec::new(),
-            previous_hash: vec![0; 32],
-            merkle_root: Vec::new(),
-            timestamp: time,
-            height: 0,
-            difficulty: 0,
-            nonce: 0,
-            transactions: Vec::new(),
-            hash: Vec::new(),
-        };
-        b.hash = b.hash()?;
-        Ok(b)
     }
 
     /**
      *  créer un nouveau bloc à l'aide du hash du bloc dernier bloc contenu dans la chaîne
      **/
     pub fn new(latest_block: &Block) -> Result<Block, Error> {
-        let mut time = 0;
         match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(elapsed) => time = elapsed.as_secs(),
+            Ok(elapsed) => {
+                let mut block = Block {
+                    version: 0,
+                    flags: Vec::new(),
+                    previous_hash: latest_block.hash.clone(),
+                    merkle_root: Vec::new(),
+                    timestamp: elapsed.as_secs(),
+                    height: 1,
+                    difficulty: 0,
+                    nonce: 0,
+                    transactions: Vec::new(),
+                    hash: Vec::new(),
+                };
+                block.hash = block.hash()?;
+                Ok(block)
+            },
             Err(e) => panic!(e),
         }
-        let mut block = Block {
-            version: 0,
-            flags: Vec::new(),
-            previous_hash: latest_block.hash.clone(),
-            merkle_root: Vec::new(),
-            timestamp: time,
-            height: 1,
-            difficulty: 0,
-            nonce: 0,
-            transactions: Vec::new(),
-            hash: Vec::new(),
-        };
-        block.hash = block.hash()?;
-        Ok(block)
     }
 
     /**
@@ -98,21 +97,17 @@ impl Block {
         Ok(hash::hash(result))
     }
 
-    pub fn is_valid(block: &Block) -> bool {
-        if block.transactions.len() == 0 {
+    pub fn is_sane(&self) -> bool {
+        if self.transactions.len() == 0 {
             return false;
         }
-        for (i, b) in block.hash.iter().enumerate() {
-            if i < block.difficulty as usize {
-                if *b != 0 {
-                    return false;
-                }
-            }
+        if self.hash[0..(self.difficulty as usize)] != vec![0; self.difficulty as usize][..] {
+            return false;
         }
 
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => {
-                if block.timestamp >= (now.as_secs() + 7200) {
+                if self.timestamp >= (now.as_secs() + 7200) {
                     return false;
                 }
             }
@@ -121,12 +116,21 @@ impl Block {
             }
         }
 
-        //first transaction is coinbase
-        //validate each transaction
+        if self.merkle_root != ::utils::merkle_tree::compute_merkle_root(self.transactions.iter().map( |tx| tx.hash().unwrap() ).collect()) {
+            return false;
+        }
 
         true
     }
 
+    pub fn is_valid(&self) -> bool {
+        if !self.is_sane() {
+            return false;
+        }
+
+        //valid txs
+        true
+    }
 
     pub fn send_header(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
@@ -182,7 +186,7 @@ impl Block {
         Ok(buffer)
     }
 
-    pub fn read(buffer: Vec<u8>) -> Result<Block, Error> {
+    pub fn read(buffer: &Vec<u8>) -> Result<Block, Error> {
         let mut version = buffer[0..4].to_vec();
         version.reverse();
         let version: u32 = deserialize(&version)?;
@@ -227,7 +231,7 @@ impl Block {
 
         let mut txs = Vec::new();
         for _ in 0..tx_count.value {
-            let tx = transaction::Transaction::read(&buffer[offset..].to_vec());
+            let tx = Transaction::read(&buffer[offset..].to_vec());
             offset += tx.size() as usize;
             txs.push(tx);
         }

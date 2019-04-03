@@ -3,7 +3,7 @@ use bincode::deserialize;
 use model::message::*;
 use std::net::TcpStream;
 use std::io::prelude::*;
-use utils::error::Error;
+use utils::Error;
 use std::sync::mpsc;
 
 #[derive(PartialEq, Debug)]
@@ -89,7 +89,6 @@ pub struct Peer {
                 "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let message = Inv::read(&payload);
                     println!("Received Inv message with {} items", &message.count.value);
-                    dbg!(&message);
                     let mut txs = Vec::new();
                     let mut blocks = Vec::new();
                     for item in message.inventory {
@@ -103,14 +102,23 @@ pub struct Peer {
                         self.server_sender.send(ServerMessage::CheckTxs(self.sender.clone(), txs))?;
                     }
                     if blocks.len() > 0 {
-                        // check blocks
+                        self.server_sender.send(ServerMessage::CheckBlocks(self.sender.clone(), blocks))?;
                     }
                 },
                 "getblocks\u{0}\u{0}\u{0}" => {
                     let message = GetBlocks::read(&payload);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
-                _ => { println!("didn't understand message type: {}", message_type); }
+                "transaction\u{0}" => {
+                    let tx = ::model::transaction::Transaction::read(&payload);
+                    self.server_sender.send(ServerMessage::AddTx(tx))?;
+                },
+                "block\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
+                    dbg!("is this a block?");
+                    let block = ::model::block::Block::read(&payload)?;
+                    self.server_sender.send(ServerMessage::AddBlock(block))?;
+                },
+                _ => { println!("didn't understand message type: {}", message_type); dbg!(&payload);}
             }
         }
         Ok(())
@@ -140,10 +148,16 @@ pub struct Peer {
                         },
                         ServerMessage::GetBlocksReply(hashs) => {
                             let inv = Inv::from_vec(hashs);
-                            let mut message = self.prepare_header("inv".to_string(), inv.size()).unwrap();
+                            let mut message = self.prepare_header("inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
                             message.append(&mut inv.send());
                             self.send(message);
-                        }
+                        },
+                        ServerMessage::AskBlocks(hashs) => {
+                            let inv = Inv::from_vec(hashs);
+                            let mut message = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
+                            message.append(&mut inv.send());
+                            self.send(message);
+                        },
                         _                               => ()
                     }
                 },

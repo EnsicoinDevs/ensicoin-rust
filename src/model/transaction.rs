@@ -2,7 +2,7 @@ use bincode::deserialize;
 use bincode::serialize;
 use model::message::Size;
 use utils::hash;
-use utils::error::Error;
+use utils::Error;
 use utils::types::*;
 
 #[derive(Debug, Clone)]
@@ -43,6 +43,7 @@ impl Size for Outpoint {
 pub struct TxIn {
     pub previous_output: Outpoint,
     pub script: VarStr,
+    pub shash: Vec<u8>,
 }
 
 impl TxIn {
@@ -54,12 +55,13 @@ impl TxIn {
     }
 
     pub fn read(buffer: &Vec<u8>) -> TxIn {
-        let previous_output = Outpoint::read(&buffer[0..].to_vec());
+        let previous_output = Outpoint::read(buffer);
         let script = VarStr::new(&buffer[previous_output.size() as usize..].to_vec());
 
         TxIn {
             previous_output: previous_output,
-            script: script
+            script: script,
+            shash:  Vec::new()
         }
     }
 }
@@ -118,6 +120,44 @@ pub struct Transaction {
 }
 
 impl Transaction {
+
+    pub fn generic_shash_part(&mut self) -> Vec<u8> {
+        let mut hash_vec = Vec::new();
+
+        let mut version = serialize(&self.version).unwrap();
+        version.reverse();
+        hash_vec.append(&mut version);
+
+        let mut flags_count = serialize(&self.flags_count.value).unwrap();
+        flags_count.reverse();
+        hash_vec.append(&mut flags_count);
+
+        for s in &self.flags {
+            hash_vec.append(&mut serialize(&s.value).unwrap());
+        }
+        for i in &self.inputs {
+            let mut outpoint_hash = ::utils::hash::hash(i.previous_output.send().unwrap());
+            outpoint_hash = ::utils::hash::hash(outpoint_hash);
+            hash_vec.append(&mut outpoint_hash);
+        }
+
+        hash_vec
+    }
+
+    pub fn is_sane(&self) -> bool {
+        if self.inputs_count.value == 0 && self.outputs_count.value == 0 {
+            return false;
+        }
+
+        for txo in &self.outputs {
+            if txo.value == 0 {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn hash(&self) -> Result<Vec<u8>, Error> {
         let buffer = self.send()?;
 
@@ -208,5 +248,22 @@ impl Size for Transaction {
             s += o.size();
         }
         s as u64
+    }
+}
+
+pub struct TxTxo {
+    pub tx      : Transaction,
+    pub txos    : Vec<TxOut>,
+}
+impl TxTxo {
+    pub fn send(&self) -> Result<Vec<u8>, Error> {
+        self.tx.send()
+    }
+
+    pub fn read(buffer: &Vec<u8>) -> TxTxo {
+        TxTxo {
+            tx : Transaction::read(buffer),
+            txos : Vec::new()
+        }
     }
 }
