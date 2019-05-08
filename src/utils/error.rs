@@ -30,8 +30,8 @@ impl<T> From<std::sync::mpsc::SendError<T>> for Error {
     }
 }
 
-impl From<sled::Error<()>> for Error {
-    fn from(_: sled::Error<()>) -> Error {
+impl From<sled::Error> for Error {
+    fn from(_: sled::Error) -> Error {
         Error::DBError
     }
 }

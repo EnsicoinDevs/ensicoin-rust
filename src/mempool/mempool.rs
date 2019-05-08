@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use model::transaction::*;
+use blockchain::Utxos;
 use utils::Error;
 
 pub struct Mempool {
@@ -28,6 +29,11 @@ impl Mempool {
             }
         }
         //valid tx
+        let txto = TxTxo::new(tx, Utxos::get_utxos(tx.hash()?)?);
+        if !txto.is_valid() {
+            
+        }
+
         self.txs.insert(tx.hash()?, tx.clone());
         // check if TxOut of tx are in orphans
         dbg!(&self.txs);

@@ -14,9 +14,7 @@ pub struct Outpoint {
 impl Outpoint {
     pub fn send(&self) -> Result<Vec<u8>, Error> {
         let mut buffer = self.hash.clone();
-        let mut index = serialize(&self.index)?;
-        index.reverse();
-        buffer.append(&mut index);
+        buffer.append(&mut self.index.to_be_bytes().to_vec());
 
         Ok(buffer)
     }
@@ -81,9 +79,7 @@ impl TxOut {
     pub fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
 
-        let mut value = serialize(&self.value).unwrap();
-        value.reverse();
-        buffer.append(&mut value);
+        buffer.append(&mut self.value.to_be_bytes().to_vec());
         buffer.append(&mut self.script.send());
 
         buffer
@@ -251,19 +247,38 @@ impl Size for Transaction {
     }
 }
 
-pub struct TxTxo {
-    pub tx      : Transaction,
+pub struct TxTxo<'a> {
+    pub tx      : &'a Transaction,
     pub txos    : Vec<TxOut>,
 }
-impl TxTxo {
-    pub fn send(&self) -> Result<Vec<u8>, Error> {
-        self.tx.send()
+impl<'a> TxTxo<'a> {
+    pub fn new(tx: &'a Transaction, txos: Vec<TxOut>) -> TxTxo {
+        TxTxo {
+            tx: tx,
+            txos: txos,
+        }
     }
 
-    pub fn read(buffer: &Vec<u8>) -> TxTxo {
-        TxTxo {
-            tx : Transaction::read(buffer),
-            txos : Vec::new()
+    pub fn is_valid(&self) -> bool {
+        if !self.tx.is_sane() {
+            return false;
         }
+
+        let mut entry_sum = 0;
+        for entry in &self.txos {
+            entry_sum += entry.value;
+        }
+        let mut output_sum = 0;
+        for output in &self.tx.outputs {
+            output_sum += output.value;
+        }
+
+        if output_sum >= entry_sum {
+            return false;
+        }
+
+        //check is tx exists in main chain
+        //check all txos if said output is not already in some tx input in mainchain
+        true
     }
 }

@@ -1,5 +1,6 @@
-use model::block::Block;
-use utils::error::Error;
+use crate:: model::block::Block;
+use crate::model::transaction::TxOut;
+use crate::utils::error::Error;
 use sled::Db;
 use dirs::data_dir;
 
@@ -64,4 +65,43 @@ impl NextHash {
     }
 }
 
+//key is a tx hash, value is a vec of all outputs used as entry for this tx
 pub struct Utxos;
+impl Utxos {
+    fn open() -> Result<Db, Error> {
+        let mut path = data_dir()?;
+        path.push("ensicoin-rust/");
+        path.push("utxos.db");
+        Ok(sled::Db::start_default(path)?)
+    }
+
+    pub fn get_utxos(tx_hash : Vec<u8>) -> Result<Vec<TxOut>, Error> {
+        let db = Utxos::open()?;
+        let utxos = (&*db.get(tx_hash)??).to_vec();
+        let offset = 0;
+        let mut result = Vec::new();
+        while offset < utxos.len() {
+            result.push(TxOut::read(&utxos[offset..].to_vec()));
+        }
+
+        Ok(result)
+    }
+
+    pub fn tx_exist(tx_hash : Vec<u8>) -> Result<bool, Error> {
+        let db = Utxos::open()?;
+        let utxo = db.get(tx_hash)?;
+        if let Some(_) = utxo {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn insert_utxos(utxos : Vec<u8>, tx_hash : Vec<u8>) -> Result<(), Error>{
+        let db = Utxos::open()?;
+        db.set(tx_hash.clone(), utxos)?;
+        db.flush()?;
+
+        Ok(())
+    }
+}

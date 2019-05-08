@@ -106,6 +106,7 @@ pub struct Peer {
                     }
                 },
                 "getblocks\u{0}\u{0}\u{0}" => {
+                    dbg!("getblocks here");
                     let message = GetBlocks::read(&payload);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
