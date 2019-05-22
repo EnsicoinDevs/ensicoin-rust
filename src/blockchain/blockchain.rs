@@ -16,7 +16,7 @@ impl Blockchain {
     fn open() -> Result<Db, Error> {
         let mut path = data_dir()?;
         path.push("ensicoin-rust/");
-        path.push("blockchain.db");
+        path.push("blockchain");
         Ok(sled::Db::start_default(path)?)
     }
 
@@ -47,7 +47,7 @@ impl NextHash {
     fn open() -> Result<Db, Error> {
         let mut path = data_dir()?;
         path.push("ensicoin-rust/");
-        path.push("next_block.db");
+        path.push("next_block");
         Ok(sled::Db::start_default(path)?)
     }
 
@@ -71,7 +71,7 @@ impl Utxos {
     fn open() -> Result<Db, Error> {
         let mut path = data_dir()?;
         path.push("ensicoin-rust/");
-        path.push("utxos.db");
+        path.push("utxos");
         Ok(sled::Db::start_default(path)?)
     }
 

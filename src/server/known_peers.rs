@@ -8,7 +8,7 @@ impl KnownPeers {
     fn open() -> Result<Db, Error> {
         let mut path = data_dir()?;
         path.push("ensicoin-rust/");
-        path.push("known_peers.db");
+        path.push("known_peers");
         Ok(sled::Db::start_default(path)?)
     }
 
@@ -24,5 +24,13 @@ impl KnownPeers {
         let iter = db.iter();
         let r = iter.map( |x| String::from_utf8(x.unwrap().0).unwrap() ).collect();
         Ok(r)
+    }
+    pub fn del_peer(&self, ip: String) -> Result<(), Error> {
+        let db = KnownPeers::open()?;
+
+        db.del(ip)?;
+
+        db.flush()?;
+        Ok(())
     }
 }

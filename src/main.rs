@@ -3,6 +3,7 @@
 extern crate clap;
 extern crate sha2;
 extern crate serde;
+extern crate serde_json;
 extern crate bincode;
 extern crate protobuf;
 extern crate grpc;

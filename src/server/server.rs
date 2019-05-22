@@ -107,8 +107,6 @@ impl Server {
                             Err(e) => println!("{}", e),
                         }
 
-                    } else {
-                        println!("Already connected to peer");
                     }
                 },
                 ServerMessage::AddPeer(sender, ip) => {
@@ -122,6 +120,11 @@ impl Server {
                     if self.peers.contains_key(&ip) {
                         self.peers.remove(&ip);
                     }
+                    match KnownPeers.del_peer((*ip).to_string()) {
+                        Ok(_) => (),
+                        Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
+                    }
+
                     println!("peer deleted: {}", &ip);
                 },
                 ServerMessage::ClosePeer(ip) => {
@@ -163,9 +166,9 @@ impl Server {
                             Err(_) => ()
                         }
                     }
-                    if hashs.len() > 0 {
+                    // if hashs.len() > 0 {
                         sender.send(ServerMessage::GetBlocksReply(hashs)).unwrap();
-                    }
+                    // }
                     //maybe send entire blockchain otherwise?
                 },
                 ServerMessage::AddTx(tx) => {

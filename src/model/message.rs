@@ -128,6 +128,7 @@ impl Size for WhoAmI {
         4 + self.from.size() + self.service_count.size() + self.services.size()
     }
 }
+
 // inv or getdata or notfound message
 #[derive(Debug)]
 pub struct Inv {

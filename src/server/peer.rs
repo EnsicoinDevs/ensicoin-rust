@@ -106,7 +106,7 @@ pub struct Peer {
                     }
                 },
                 "getblocks\u{0}\u{0}\u{0}" => {
-                    dbg!("getblocks here");
+                    println!("Received getblocks");
                     let message = GetBlocks::read(&payload);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
@@ -115,7 +115,6 @@ pub struct Peer {
                     self.server_sender.send(ServerMessage::AddTx(tx))?;
                 },
                 "block\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
-                    dbg!("is this a block?");
                     let block = ::model::block::Block::read(&payload)?;
                     self.server_sender.send(ServerMessage::AddBlock(block))?;
                 },

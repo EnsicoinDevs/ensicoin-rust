@@ -12,6 +12,7 @@ impl From<std::boxed::Box<bincode::ErrorKind>> for Error {
         Error::DeserializeError(e)
     }
 }
+
 impl From<std::io::Error> for Error {
     fn from(e : std::io::Error) -> Error {
         Error::IOError(e)

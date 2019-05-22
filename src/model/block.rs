@@ -15,7 +15,7 @@ pub struct Block {
     pub merkle_root: Vec<u8>,
     pub timestamp: u64,
     pub height: u32,
-    pub difficulty: u64,
+    pub difficulty: Vec<u8>,
     pub nonce: u64,
     pub transactions: Vec<Transaction>,
     pub hash: Vec<u8>,
@@ -26,28 +26,23 @@ impl Block {
      *  création du bloc génésis qui n'a pas de previous hash et a pour index 0
      **/
     pub fn genesis_block() -> Result<Block, Error> {
-        match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(elapsed) => {
-                let time = elapsed.as_secs();
-                let mut b: Block = Block {
-                    version: 0,
-                    flags: Vec::new(),
-                    previous_hash: vec![0; 32],
-                    merkle_root: Vec::new(),
-                    timestamp: time,
-                    height: 0,
-                    difficulty: 0,
-                    nonce: 0,
-                    transactions: Vec::new(),
-                    hash: Vec::new(),
-                };
-                b.hash = b.hash()?;
-                Ok(b)
-            }
-            Err(e) => {
-                panic!(e);
-            }
-        }
+
+        let time = 1558540052;
+        let flag = VarStr::from_string("ici cest limag".to_string());
+        let mut b: Block = Block {
+            version: 0,
+            flags: vec![flag],
+            previous_hash: vec![0; 32],
+            merkle_root: vec![0; 32],
+            timestamp: time,
+            height: 0,
+            difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            nonce: 42,
+            transactions: Vec::new(),
+            hash: Vec::new(),
+        };
+        b.hash = b.hash()?;
+        Ok(b)
     }
 
     /**
@@ -63,7 +58,7 @@ impl Block {
                     merkle_root: Vec::new(),
                     timestamp: elapsed.as_secs(),
                     height: 1,
-                    difficulty: 0,
+                    difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                     nonce: 0,
                     transactions: Vec::new(),
                     hash: Vec::new(),
@@ -101,9 +96,9 @@ impl Block {
         if self.transactions.len() == 0 {
             return false;
         }
-        if self.hash[0..(self.difficulty as usize)] != vec![0; self.difficulty as usize][..] {
-            return false;
-        }
+        // if self.hash[0..(self.difficulty as usize)] != vec![0; self.difficulty as usize][..] {
+        //     return false;
+        // } NIQUE TA MERE.
 
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => {
@@ -155,9 +150,7 @@ impl Block {
         height.reverse();
         buffer.append(&mut height);
 
-        let mut difficulty = serialize(&self.difficulty)?;
-        difficulty.reverse();
-        buffer.append(&mut difficulty);
+        buffer.append(&mut self.difficulty.clone());
 
         let mut nonce = serialize(&self.nonce)?;
         nonce.reverse();
@@ -216,10 +209,8 @@ impl Block {
         let height = deserialize(&height)?;
         offset += 4;
 
-        let mut target = buffer[offset..offset + 4].to_vec();
-        target.reverse();
-        let target = deserialize(&target)?;
-        offset += 4;
+        let target = buffer[offset..offset + 32].to_vec();
+        offset += 32;
 
         let mut nonce = buffer[offset..offset + 8].to_vec();
         nonce.reverse();
