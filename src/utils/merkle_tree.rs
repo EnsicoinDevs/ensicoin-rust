@@ -1,7 +1,7 @@
 use utils::hash;
 
 pub fn compute_merkle_root(mut hashes: Vec<Vec<u8>>) -> Vec<u8> {
-    if hashes.len() == 0 {
+    if hashes.is_empty() {
         return hash::hash(vec![]);
     } //TODO: delete when blocks have always at least one tx
 

@@ -27,7 +27,7 @@ impl Block {
      **/
     pub fn genesis_block() -> Result<Block, Error> {
 
-        let time = 1558540052;
+        let time = 1_558_540_052;
         let flag = VarStr::from_string("ici cest limag".to_string());
         let mut b: Block = Block {
             version: 0,
@@ -93,7 +93,7 @@ impl Block {
     }
 
     pub fn is_sane(&self) -> bool {
-        if self.transactions.len() == 0 {
+        if self.transactions.is_empty() {
             return false;
         }
         // if self.hash[0..(self.difficulty as usize)] != vec![0; self.difficulty as usize][..] {
@@ -179,7 +179,7 @@ impl Block {
         Ok(buffer)
     }
 
-    pub fn read(buffer: &Vec<u8>) -> Result<Block, Error> {
+    pub fn read(buffer: &[u8]) -> Result<Block, Error> {
         let mut version = buffer[0..4].to_vec();
         version.reverse();
         let version: u32 = deserialize(&version)?;
@@ -228,14 +228,14 @@ impl Block {
         }
 
         let mut b = Block {
-            version: version,
-            flags: flags,
+            version,
+            flags,
             previous_hash: prev_block.to_vec(),
             merkle_root: merkle_root.to_vec(),
-            timestamp: timestamp,
-            height: height,
+            timestamp,
+            height,
             difficulty: target,
-            nonce: nonce,
+            nonce,
             transactions: txs,
             hash: Vec::new(),
         };

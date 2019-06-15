@@ -63,10 +63,10 @@ pub struct WhoAmI {
         let size = service_count.size() as usize;
         let services = VarStr::new(&payload[29+size..].to_vec());
         WhoAmI {
-            version         : version,
-            from            : address,
-            service_count   : service_count,
-            services        : services,
+            version,
+            from: address,
+            service_count,
+            services,
         }
     }
 
@@ -74,7 +74,7 @@ pub struct WhoAmI {
     // send WhoAmI and WhoAmIAck
     pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<u32, Box<bincode::ErrorKind>> {
         println!("fully read incoming whoami, sending response");
-        if we_connected == false {
+        if !we_connected {
             // send WhoAmI
             let message = WhoAmI {
                 version         : server_version,
@@ -94,7 +94,10 @@ pub struct WhoAmI {
         buffer.append(&mut message_type.as_bytes().to_vec());
         buffer.append(&mut vec![0; 3]);
         buffer.append(&mut vec![0; 8]);
-        stream.write(&buffer)?;
+        if stream.write(&buffer)? != buffer.len() {
+            panic!("oops");
+            //TODO: change return error type to Error and return an Err here
+        }
 
         Ok(min(server_version, self.version))
     }
@@ -118,7 +121,10 @@ pub struct WhoAmI {
         buffer.append(&mut message.from.send());
         buffer.append(&mut message.service_count.send());
         buffer.append(&mut message.services.send());
-        stream.write(&buffer)?;
+        if stream.write(&buffer)? != buffer.len() {
+            panic!("oops");
+            //TODO: change return type to Error and return an Err here
+        }
         Ok(())
     }
 
@@ -145,12 +151,12 @@ impl Inv {
         }
 
         Inv {
-            count: count,
-            inventory: inventory
+            count,
+            inventory
         }
     }
 
-    pub fn read(buffer: &Vec<u8>) -> Inv {
+    pub fn read(buffer: &[u8]) -> Inv {
         let count = VarUint::new(buffer);
         let mut offset : usize = count.size() as usize;
 
@@ -162,8 +168,8 @@ impl Inv {
         }
 
         Inv {
-            count:      count,
-            inventory:  inventory
+            count,
+            inventory
         }
     }
 
@@ -190,7 +196,7 @@ pub struct GetBlocks {
     pub hash_stop       : Vec<u8>
 }
 impl GetBlocks {
-    pub fn read(buffer: &Vec<u8>) -> GetBlocks {
+    pub fn read(buffer: &[u8]) -> GetBlocks {
         let count = VarUint::new(buffer);
         let mut offset : usize = count.size() as usize;
 
@@ -202,9 +208,9 @@ impl GetBlocks {
         let hash_stop = buffer[offset..offset+32].to_vec();
 
         GetBlocks {
-            count: count,
-            block_locator: block_locator,
-            hash_stop: hash_stop
+            count,
+            block_locator,
+            hash_stop
         }
     }
 

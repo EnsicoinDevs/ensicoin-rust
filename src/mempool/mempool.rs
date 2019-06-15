@@ -25,13 +25,12 @@ impl Mempool {
             if !self.txs.contains_key(&input.previous_output.hash) {
                 self.orphans.insert(tx.hash()?, tx.clone());
                 self.orphans_outpoints.insert(input.previous_output.hash.clone(), input.previous_output.clone());
-                ()
             }
         }
         //valid tx
         let txto = TxTxo::new(tx, Utxos::get_utxos(tx.hash()?)?);
         if !txto.is_valid() {
-            
+
         }
 
         self.txs.insert(tx.hash()?, tx.clone());

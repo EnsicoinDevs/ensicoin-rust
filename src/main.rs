@@ -20,10 +20,12 @@ mod rpc;
 use std::error::Error;
 use server::server::Server;
 use utils::clp;
+mod init;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = clp::initiate_cli();
+    init::read_config()?;
     let mut server = Server::new(cli.port);
     server.interactive();
     server.listen();

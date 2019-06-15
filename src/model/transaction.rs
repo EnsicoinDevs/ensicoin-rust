@@ -19,15 +19,15 @@ impl Outpoint {
         Ok(buffer)
     }
 
-    pub fn read(buffer: &Vec<u8>) -> Outpoint {
+    pub fn read(buffer: &[u8]) -> Outpoint {
         let hash = buffer[0..32].to_vec();
         let mut index = buffer[32..36].to_vec();
         index.reverse();
         let index = deserialize(&index).unwrap();
 
         Outpoint {
-            hash: hash,
-            index: index
+            hash,
+            index
         }
     }
 }
@@ -52,13 +52,13 @@ impl TxIn {
         Ok(buffer)
     }
 
-    pub fn read(buffer: &Vec<u8>) -> TxIn {
+    pub fn read(buffer: &[u8]) -> TxIn {
         let previous_output = Outpoint::read(buffer);
         let script = VarStr::new(&buffer[previous_output.size() as usize..].to_vec());
 
         TxIn {
-            previous_output: previous_output,
-            script: script,
+            previous_output,
+            script,
             shash:  Vec::new()
         }
     }
@@ -85,7 +85,7 @@ impl TxOut {
         buffer
     }
 
-    pub fn read(buffer: &Vec<u8>) -> TxOut {
+    pub fn read(buffer: &[u8]) -> TxOut {
         let mut value = buffer[0..8].to_vec();
         value.reverse();
         let value = deserialize(&value).unwrap();
@@ -93,8 +93,8 @@ impl TxOut {
         let script = VarStr::new(&buffer[8..].to_vec());
 
         TxOut {
-            value: value,
-            script: script
+            value,
+            script
         }
     }
 }
@@ -184,7 +184,7 @@ impl Transaction {
         Ok(buffer)
     }
 
-    pub fn read(buffer: &Vec<u8>) -> Transaction {
+    pub fn read(buffer: &[u8]) -> Transaction {
         let mut version = buffer[0..4].to_vec();
         version.reverse();
         let version = deserialize(&version).unwrap();
@@ -219,13 +219,13 @@ impl Transaction {
         }
 
         Transaction {
-            version: version,
-            flags_count: flags_count,
-            flags: flags,
-            inputs_count: inputs_count,
-            inputs: inputs,
-            outputs_count: outputs_count,
-            outputs: outputs,
+            version,
+            flags_count,
+            flags,
+            inputs_count,
+            inputs,
+            outputs_count,
+            outputs,
         }
     }
 }
@@ -254,8 +254,8 @@ pub struct TxTxo<'a> {
 impl<'a> TxTxo<'a> {
     pub fn new(tx: &'a Transaction, txos: Vec<TxOut>) -> TxTxo {
         TxTxo {
-            tx: tx,
-            txos: txos,
+            tx,
+            txos,
         }
     }
 

@@ -20,7 +20,6 @@ pub struct Server {
         sender          : mpsc::Sender<ServerMessage>,
         receiver        : mpsc::Receiver<ServerMessage>,
         mempool         : Mempool,
-        blockchain      : Blockchain,
 }
 
 impl Server {
@@ -35,7 +34,6 @@ impl Server {
             sender          : tx,
             receiver        : rx,
             mempool         : Mempool::new(),
-            blockchain      : Blockchain,
         }
     }
 
@@ -50,7 +48,7 @@ impl Server {
         thread::spawn(move || {
             for stream in listener.incoming() {
                 println!("Incoming peer");
-                let mut stream = stream.unwrap().try_clone().unwrap();
+                let stream = stream.unwrap().try_clone().unwrap();
                 let sender2 = sender.clone();
                 thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
                     Peer::new(stream, sender2, false).update();
@@ -103,7 +101,7 @@ impl Server {
                             Ok(tcp) => {
                                 thread::Builder::new().name(ip.to_string()).spawn( move || {
                                 Peer::new(tcp, sender, true).connect();
-                            }).unwrap(); ()},
+                            }).unwrap(); },
                             Err(e) => println!("{}", e),
                         }
 
@@ -135,7 +133,6 @@ impl Server {
                 ServerMessage::CloseServer => {
                     for p in self.peers.values() {
                         p.send(ServerMessage::CloseConnection).unwrap();
-                        drop(&self.listener);
                     }
                     panic!("Ensicoin stopped");
                 },
@@ -151,19 +148,16 @@ impl Server {
                 ServerMessage::GetBlocks(sender, message) => {
                     let mut hashs = Vec::new();
                     for hash in &message.block_locator {
-                        match self.blockchain.get_block(&hash) {
-                            Ok(b) => {
-                                let mut hash = b.hash().unwrap();
-                                while let Ok(h) = NextHash::get_next_hash(&hash) {
-                                    hashs.push((h.clone(), 1));
-                                    if h == message.hash_stop {
-                                        break;
-                                    }
-                                    hash = h;
+                        if let Ok(b) = Blockchain::get_block(&hash) {
+                            let mut hash = b.hash().unwrap();
+                            while let Ok(h) = NextHash::get_next_hash(&hash) {
+                                hashs.push((h.clone(), 1));
+                                if h == message.hash_stop {
+                                    break;
                                 }
-                                break;
-                            },
-                            Err(_) => ()
+                                hash = h;
+                            }
+                            break;
                         }
                     }
                     // if hashs.len() > 0 {
@@ -177,7 +171,7 @@ impl Server {
                 ServerMessage::CheckBlocks(sender, hashs) => {
                     let mut inv = Vec::new();
                     for hash in hashs {
-                        match self.blockchain.get_block(hash) {
+                        match Blockchain::get_block(hash) {
                             Ok(_) => (),
                             Err(_) => {
                                 inv.push((hash.clone(), 1));
@@ -187,7 +181,7 @@ impl Server {
                     sender.send(ServerMessage::AskBlocks(inv)).unwrap();
                 },
                 ServerMessage::AddBlock(block) => {
-                    self.blockchain.insert_block(block.hash().unwrap(), block).unwrap();
+                    Blockchain::insert_block(block.hash().unwrap(), block).unwrap();
                 },
                 _ => ()
             }
@@ -219,7 +213,7 @@ fn launch_discovery_server() {
         server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl{peers: KnownPeers}));
         let _server = server.build().expect("server");
 
-        println!("discovery server started on port {}", 2442);
+        println!("discovery server started on port 2442");
 
         loop {
             std::thread::park();

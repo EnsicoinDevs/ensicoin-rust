@@ -27,11 +27,11 @@ pub struct Peer {
         s.set_nonblocking(true).unwrap();
         Peer {
             stream              : s,
-            server_sender       : server_sender,
+            server_sender,
             sender              : tx,
             receiver            : rx,
             connection_version  : 1,
-            initiated_by_us     : initiated_by_us,
+            initiated_by_us,
             connection_state    : State::Tcp,
         }
     }
@@ -65,7 +65,7 @@ pub struct Peer {
                 "whoamiack\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
-                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), (&self.stream.peer_addr().unwrap()).clone()))?;
+                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap()))?;
                         println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
@@ -98,10 +98,10 @@ pub struct Peer {
                             blocks.push(item.hash);
                         }
                     }
-                    if txs.len() > 0 {
+                    if !txs.is_empty() {
                         self.server_sender.send(ServerMessage::CheckTxs(self.sender.clone(), txs))?;
                     }
-                    if blocks.len() > 0 {
+                    if !blocks.is_empty() {
                         self.server_sender.send(ServerMessage::CheckBlocks(self.sender.clone(), blocks))?;
                     }
                 },
@@ -140,7 +140,7 @@ pub struct Peer {
                             }
                             let message = Inv {
                                 count: ::utils::types::VarUint::from_u64(length as u64),
-                                inventory: inventory
+                                inventory
                             };
                             let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();
                             buffer.append(&mut message.send());
@@ -161,9 +161,8 @@ pub struct Peer {
                         _                               => ()
                     }
                 },
-                Err(e)  =>  match e {
-                                std::sync::mpsc::TryRecvError::Disconnected => break,
-                                _ => ()
+                Err(e)  =>  if let std::sync::mpsc::TryRecvError::Disconnected = e {
+                                break
                             }
             }
             match self.read_message() {
@@ -172,7 +171,6 @@ pub struct Peer {
                                 Error::IOError(e) => {
                                     if e.kind() == std::io::ErrorKind::WouldBlock {
                                         // println!("nothing to read");
-                                        ()
                                     } else {
                                         println!("{:?}", e); break;
                                     }
@@ -215,19 +213,19 @@ pub struct Peer {
     }
 
     fn send(&mut self, message : Vec<u8>) {
-        self.stream.write(&message).unwrap();
+        self.stream.write_all(&message).unwrap();
     }
 
     fn read_header(&mut self) -> Result<Vec<u8>, Error> {
         let mut buffer : [u8; 24] = [0; 24];
-        self.stream.read(&mut buffer)?;
+        self.stream.read_exact(&mut buffer)?;
         Ok(buffer.to_vec())
     }
 
     fn read_payload(&mut self, length : usize) -> Result<Vec<u8>, Error> {
         if length != 0 {
             let mut buffer = vec![0; length];
-            self.stream.read(&mut buffer)?;
+            self.stream.read_exact(&mut buffer)?;
             Ok(buffer)
         } else {
             Ok(vec![0])

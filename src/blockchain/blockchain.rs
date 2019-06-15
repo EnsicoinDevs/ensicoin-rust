@@ -20,17 +20,23 @@ impl Blockchain {
         Ok(sled::Db::start_default(path)?)
     }
 
-    pub fn get_block(&self, hash: &Vec<u8>) -> Result<Block, Error> {
+    pub fn add_genesis_block() -> Result<(), Error> {
+        let gen = Block::genesis_block()?;
+        Blockchain::insert_block(gen.hash()?, &gen)?;
+        Ok(())
+    }
+
+    pub fn get_block(hash: &[u8]) -> Result<Block, Error> {
         let db = Blockchain::open()?;
         Ok(Block::read(&(&*db.get(hash)??).to_vec())?)
     }
 
-    pub fn get_blocks(&self) -> Result<Vec<Block>, Error> {
-        let db = Blockchain::open()?;
-        db.iter().map( |x| Block::read(&x.unwrap().0) ).collect()
-    }
+    // pub fn get_blocks() -> Result<Vec<Block>, Error> {
+    //     let db = Blockchain::open()?;
+    //     db.iter().map( |x| Block::read(&x.unwrap().0) ).collect()
+    // }
 
-    pub fn insert_block(&self, hash: Vec<u8>, block: &Block) -> Result<(), Error> {
+    pub fn insert_block(hash: Vec<u8>, block: &Block) -> Result<(), Error> {
         let db = Blockchain::open()?;
         db.set(hash, block.send()?)?;
         db.flush()?;
@@ -51,7 +57,7 @@ impl NextHash {
         Ok(sled::Db::start_default(path)?)
     }
 
-    pub fn get_next_hash(hash: &Vec<u8>) -> Result<Vec<u8>, Error> {
+    pub fn get_next_hash(hash: &[u8]) -> Result<Vec<u8>, Error> {
         let db = NextHash::open()?;
         Ok((&*db.get(hash)??).to_vec())
     }
@@ -90,7 +96,7 @@ impl Utxos {
     pub fn tx_exist(tx_hash : Vec<u8>) -> Result<bool, Error> {
         let db = Utxos::open()?;
         let utxo = db.get(tx_hash)?;
-        if let Some(_) = utxo {
+        if utxo.is_some() {
             Ok(true)
         } else {
             Ok(false)

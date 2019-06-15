@@ -23,9 +23,9 @@ impl Address {
         let port: u16 = deserialize(&port).unwrap();
 
         Address {
-            timestamp: timestamp,
-            ip: ip,
-            port: port,
+            timestamp,
+            ip,
+            port,
         }
     }
     pub fn from_string(address: String) -> Result<Address, std::time::SystemTimeError> {
@@ -72,7 +72,7 @@ pub struct VarUint {
     pub value: u64,
 }
 impl VarUint {
-    pub fn new(payload: &Vec<u8>) -> VarUint {
+    pub fn new(payload: &[u8]) -> VarUint {
         let mut size = payload[0];
         match size {
             0xFD => {
@@ -87,7 +87,7 @@ impl VarUint {
             _ => {
                 return VarUint {
                     size: 1,
-                    value: size as u64,
+                    value: u64::from(size),
                 };
             }
         }
@@ -97,15 +97,15 @@ impl VarUint {
         let value: u64 = deserialize(&value).unwrap();
 
         VarUint {
-            size: size,
-            value: value,
+            size,
+            value,
         }
     }
 
     pub fn from_u64(value: u64) -> VarUint {
         VarUint {
             size: 8,
-            value: value,
+            value,
         }
     }
 
@@ -142,21 +142,21 @@ pub struct VarStr {
     pub value: String,
 }
 impl VarStr {
-    pub fn new(payload: &Vec<u8>) -> VarStr {
+    pub fn new(payload: &[u8]) -> VarStr {
         let length: VarUint = VarUint::new(payload);
         let size = length.size() as usize;
         let value = payload[size..length.value as usize].to_vec();
         let value = String::from_utf8(value).unwrap();
         VarStr {
             size: length,
-            value: value,
+            value,
         }
     }
 
     pub fn from_string(value: String) -> VarStr {
         VarStr {
             size: VarUint::from_u64(value.len() as u64),
-            value: value,
+            value,
         }
     }
 
@@ -180,18 +180,18 @@ pub struct InvVect {
 impl InvVect {
     pub fn from_vec(array: Vec<u8>, hash_type: u32) -> InvVect {
         InvVect {
-            hash_type: hash_type,
+            hash_type,
             hash: array,
         }
     }
 
-    pub fn read(buffer: &Vec<u8>) -> InvVect {
+    pub fn read(buffer: &[u8]) -> InvVect {
         let mut hash_type = buffer[0..4].to_vec();
         hash_type.reverse();
         let hash_type : u32 = deserialize(&hash_type).unwrap();
 
         InvVect {
-            hash_type: hash_type,
+            hash_type,
             hash:   buffer[4..35].to_vec()
         }
     }

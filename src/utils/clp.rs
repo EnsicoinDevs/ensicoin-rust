@@ -1,4 +1,4 @@
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, SubCommand};
 
 pub struct Args {
     pub port    : u16,

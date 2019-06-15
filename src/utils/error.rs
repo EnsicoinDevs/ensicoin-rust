@@ -7,6 +7,16 @@ pub enum Error {
     ConnectionClosed,
 }
 
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Error encountered")
+    }
+}
+
+impl std::error::Error for Error {
+}
+
 impl From<std::boxed::Box<bincode::ErrorKind>> for Error {
     fn from(e : std::boxed::Box<bincode::ErrorKind>) -> Error {
         Error::DeserializeError(e)
