@@ -1,8 +1,13 @@
-use crate:: model::block::Block;
-use crate::model::transaction::TxOut;
-use crate::utils::error::Error;
-use sled::Db;
+extern crate dirs;
+extern crate model;
+extern crate sled;
+extern crate utils;
+
 use dirs::data_dir;
+use model::block::Block;
+use model::transaction::TxOut;
+use sled::Db;
+use utils::error::Error;
 
 //////////////////////////////////////////////////////////////
 //
@@ -41,7 +46,6 @@ impl Blockchain {
         db.set(hash, block.send()?)?;
         db.flush()?;
         NextHash::insert_next_hash(block.previous_hash.clone(), block.hash()?)?;
-        dbg!("hey");
         Ok(())
     }
 

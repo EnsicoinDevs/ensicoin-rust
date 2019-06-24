@@ -1,9 +1,9 @@
 use bincode::deserialize;
 use bincode::serialize;
-use model::message::Size;
+use crate::message::Size;
+use crate::types::*;
 use utils::hash;
 use utils::Error;
-use utils::types::*;
 
 #[derive(Debug, Clone)]
 pub struct Outpoint {

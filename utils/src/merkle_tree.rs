@@ -1,4 +1,4 @@
-use utils::hash;
+use super::hash;
 
 pub fn compute_merkle_root(mut hashes: Vec<Vec<u8>>) -> Vec<u8> {
     if hashes.is_empty() {

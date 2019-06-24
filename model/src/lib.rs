@@ -1,9 +1,21 @@
+extern crate bincode;
+// extern crate utils;
+
 use bincode::deserialize;
 use bincode::serialize;
-use model::message::Size;
+use crate::message::Size;
 use std::net::IpAddr;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+
+pub mod block;
+pub mod message;
+pub mod transaction;
+pub mod types;
+
+pub use self::block::Block;
+pub use self::message::*;
+pub use self::transaction::*;
 
 #[derive(Debug)]
 pub struct Address {

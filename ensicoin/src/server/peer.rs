@@ -136,10 +136,10 @@ pub struct Peer {
                             let mut inventory = Vec::new();
                             let length = hashes.len();
                             for hash in hashes {
-                                inventory.push(::utils::types::InvVect::from_vec(hash, 0));
+                                inventory.push(model::types::InvVect::from_vec(hash, 0));
                             }
                             let message = Inv {
-                                count: ::utils::types::VarUint::from_u64(length as u64),
+                                count: model::types::VarUint::from_u64(length as u64),
                                 inventory
                             };
                             let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();

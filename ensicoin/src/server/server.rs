@@ -194,7 +194,7 @@ struct DiscoverImpl {
     peers: KnownPeers
 }
 impl Discover for DiscoverImpl {
-    fn discover_peer(&self, _o: ::grpc::RequestOptions, p: rpc::discover::NewPeer) -> ::grpc::SingleResponse<rpc::discover::Ok> {
+    fn discover_peer(&self, _o: grpc::RequestOptions, p: rpc::discover::NewPeer) -> grpc::SingleResponse<rpc::discover::Ok> {
         let ip : SocketAddr = p.get_address().parse().unwrap();
         //check known peer db
         println!("Received peer");
@@ -202,7 +202,7 @@ impl Discover for DiscoverImpl {
             Ok(_) => (),
             Err(_) => { println!("failed to add peer"); }
         }
-        ::grpc::SingleResponse::completed(rpc::discover::Ok::new())
+        grpc::SingleResponse::completed(rpc::discover::Ok::new())
     }
 }
 

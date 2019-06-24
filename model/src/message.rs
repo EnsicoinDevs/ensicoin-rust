@@ -4,9 +4,9 @@ use bincode::{serialize, deserialize};
 use std::net::TcpStream;
 use std::io::prelude::*;
 use std::sync::mpsc;
-use utils::types::*;
-use model::transaction::Transaction;
-use model::block::Block;
+use crate::types::*;
+use crate::transaction::Transaction;
+use crate::block::Block;
 
 //server messages
 #[derive(Debug)]

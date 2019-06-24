@@ -1,11 +1,10 @@
 use bincode::{deserialize, serialize};
-use model::message::Size;
-use model::transaction::*;
+use crate::message::Size;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use utils::Error;
 use utils::hash;
-use utils::types::*;
+use crate::*;
 
 #[derive(Debug)]
 pub struct Block {

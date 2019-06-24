@@ -1,3 +1,7 @@
+extern crate blockchain;
+extern crate model;
+extern crate utils;
+
 use std::collections::HashMap;
 use model::transaction::*;
 use blockchain::Utxos;
