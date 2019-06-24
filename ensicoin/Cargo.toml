@@ -2,7 +2,6 @@
 name = "ensicoin-rust"
 version = "0.1.0"
 authors = ["Arttaaz <arttaaz@gmail.com>"]
-# build = "build.rs"
 
 [dependencies]
 bincode         = "*"
@@ -13,16 +12,6 @@ mempool         = { path = "../mempool" }
 model           = { path = "../model" }
 rpc             = { path = "../rpc" }
 serde           = "1.0"
-# serde_derive    = "1.0"
 serde_json      = "1.0"
 sled            = "*"
 utils           = { path = "../utils" }
-# sha2            = "0.8.0"
-# clap            = "2.32.0"
-# protobuf        = "~2"
-# futures         = "~0.1"
-# futures-cpupool = "~0.1"
-# irc             = "*"
-
-# [build-dependencies]
-# protoc-rust-grpc = "*"

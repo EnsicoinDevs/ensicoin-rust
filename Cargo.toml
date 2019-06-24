@@ -7,27 +7,3 @@ members = [
   "rpc",
   "utils",
 ]
-
-# [package]
-# name = "ensicoin-rust"
-# version = "0.1.0"
-# authors = ["Arttaaz <arttaaz@gmail.com>"]
-# build = "build.rs"
-#
-# [dependencies]
-# sha2            = "0.8.0"
-# serde_derive    = "1.0"
-# serde           = "1.0"
-# serde_json      = "1.0"
-# bincode         = "*"
-# clap            = "2.32.0"
-# grpc            = "0.6.1"
-# protobuf        = "~2"
-# futures         = "~0.1"
-# futures-cpupool = "~0.1"
-# sled            = "*"
-# dirs            = "*"
-# # irc             = "*"
-#
-# [build-dependencies]
-# protoc-rust-grpc = "*"
