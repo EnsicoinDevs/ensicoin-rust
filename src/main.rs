@@ -11,16 +11,18 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate sled;
 extern crate dirs;
-mod mempool;
-mod utils;
+// extern crate irc;
 mod blockchain;
+mod init;
+// mod irc;
+mod mempool;
 mod model;
-mod server;
 mod rpc;
+mod server;
+mod utils;
 use std::error::Error;
 use server::server::Server;
 use utils::clp;
-mod init;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
