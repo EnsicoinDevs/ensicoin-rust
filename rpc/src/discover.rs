@@ -317,9 +317,8 @@ impl ::protobuf::reflect::ProtobufValue for Ok {
 }
 
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x0ediscover.proto\"#\n\x07NewPeer\x12\x18\n\x07address\x18\x01\x20\
-    \x01(\tR\x07address\"\x04\n\x02Ok2+\n\x08Discover\x12\x1f\n\x0cDiscoverP\
-    eer\x12\x08.NewPeer\x1a\x03.Ok\"\0b\x06proto3\
+    \n\x0ediscover.proto\x12\0\"\x1e\n\x07NewPeer\x12\x11\n\x07address\x18\
+    \x01\x20\x01(\tB\0:\0\"\x06\n\x02Ok:\0B\0b\x06proto3\
 ";
 
 static mut file_descriptor_proto_lazy: ::protobuf::lazy::Lazy<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::lazy::Lazy {

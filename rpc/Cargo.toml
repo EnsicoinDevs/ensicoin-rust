@@ -14,4 +14,5 @@ futures         = "~0.1"
 futures-cpupool = "~0.1"
 
 [build-dependencies]
-protoc-rust-grpc = "*"
+protobuf-codegen-pure = "2.3"
+# protoc-rust-grpc = "*"

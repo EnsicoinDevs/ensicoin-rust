@@ -1,11 +1,15 @@
-extern crate protoc_rust_grpc;
+extern crate protobuf_codegen_pure;
+// extern crate protoc_rust_grpc;
 
 fn main() {
-    protoc_rust_grpc::run(protoc_rust_grpc::Args {
+    protobuf_codegen_pure::run(protobuf_codegen_pure::Args {
         out_dir: "src",
         includes: &["../proto"],
         input: &["../proto/discover.proto"],
-        rust_protobuf: true, // also generate protobuf messages, not just services
-        ..Default::default()
+        customize: protobuf_codegen_pure::Customize {
+            ..Default::default()
+        },
+        // rust_protobuf: true, // also generate protobuf messages, not just services
+        // ..Default::default()
     }).expect("protoc-rust-grpc");
 }
