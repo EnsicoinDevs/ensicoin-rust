@@ -12,7 +12,7 @@ struct Config {
 }
 
 pub fn read_config() -> Result<(), Error> {
-    let mut path = data_dir()?;
+    let mut path = data_dir().unwrap();
     path.push("ensicoin-rust/");
     path.push("config.json");
     let f = File::open(path).unwrap();
@@ -23,7 +23,7 @@ pub fn read_config() -> Result<(), Error> {
         Blockchain::add_genesis_block()?;
         config.blockchain_exists = true;
 
-        let mut path = data_dir()?;
+        let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("config.json");
         let f = File::open(path).unwrap();

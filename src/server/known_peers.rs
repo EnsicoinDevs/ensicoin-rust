@@ -6,7 +6,7 @@ pub struct KnownPeers;
 
 impl KnownPeers {
     fn open() -> Result<Db, Error> {
-        let mut path = data_dir()?;
+        let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("known_peers");
         Ok(sled::Db::start_default(path)?)

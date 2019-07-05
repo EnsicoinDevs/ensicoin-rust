@@ -1,4 +1,4 @@
-#![feature(try_trait)]
+// #![feature(try_trait)]
 extern crate bincode;
 #[macro_use]
 extern crate clap;

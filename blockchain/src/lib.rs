@@ -19,7 +19,7 @@ pub struct Blockchain;
 
 impl Blockchain {
     fn open() -> Result<Db, Error> {
-        let mut path = data_dir()?;
+        let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("blockchain");
         Ok(sled::Db::start_default(path)?)
@@ -33,7 +33,7 @@ impl Blockchain {
 
     pub fn get_block(hash: &[u8]) -> Result<Block, Error> {
         let db = Blockchain::open()?;
-        Ok(Block::read(&(&*db.get(hash)??).to_vec())?)
+        Ok(Block::read(&(&*db.get(hash)?.unwrap()).to_vec())?)
     }
 
     // pub fn get_blocks() -> Result<Vec<Block>, Error> {
@@ -55,7 +55,7 @@ impl Blockchain {
 pub struct NextHash;
 impl NextHash {
     fn open() -> Result<Db, Error> {
-        let mut path = data_dir()?;
+        let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("next_block");
         Ok(sled::Db::start_default(path)?)
@@ -63,7 +63,7 @@ impl NextHash {
 
     pub fn get_next_hash(hash: &[u8]) -> Result<Vec<u8>, Error> {
         let db = NextHash::open()?;
-        Ok((&*db.get(hash)??).to_vec())
+        Ok((&*db.get(hash)?.unwrap()).to_vec())
     }
 
     pub fn insert_next_hash(hash : Vec<u8>, next_hash: Vec<u8>) -> Result<(), Error> {
@@ -79,7 +79,7 @@ impl NextHash {
 pub struct Utxos;
 impl Utxos {
     fn open() -> Result<Db, Error> {
-        let mut path = data_dir()?;
+        let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("utxos");
         Ok(sled::Db::start_default(path)?)
@@ -87,7 +87,7 @@ impl Utxos {
 
     pub fn get_utxos(tx_hash : Vec<u8>) -> Result<Vec<TxOut>, Error> {
         let db = Utxos::open()?;
-        let utxos = (&*db.get(tx_hash)??).to_vec();
+        let utxos = (&*db.get(tx_hash)?.unwrap()).to_vec();
         let offset = 0;
         let mut result = Vec::new();
         while offset < utxos.len() {

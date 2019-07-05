@@ -47,8 +47,8 @@ impl From<sled::Error> for Error {
     }
 }
 
-impl From<std::option::NoneError> for Error {
-    fn from(_: std::option::NoneError) -> Error {
-        Error::DBError
-    }
-}
+// impl From<std::option::NoneError> for Error {
+//     fn from(_: std::option::NoneError) -> Error {
+//         Error::DBError
+//     }
+// }
