@@ -41,7 +41,7 @@ pub struct Peer {
         let mut magic = header[0..4].to_vec();
         magic.reverse();
         let magic : u32 = deserialize(&magic)?;
-        if magic != 422021 {
+        if magic != 42_2021 {
             println!("wrong magic number : {}", magic);
             self.close().unwrap();
         }
@@ -198,7 +198,7 @@ pub struct Peer {
 
     fn prepare_header(&self, message_type : String, size : u64) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
-        let magic : u32 = 422021; ////////////////// magic number
+        let magic : u32 = 42_2021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
         magic.reverse();
         buffer.append(&mut magic);

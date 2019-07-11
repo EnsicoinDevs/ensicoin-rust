@@ -2,6 +2,7 @@
 pub enum Error {
     DeserializeError(std::boxed::Box<bincode::ErrorKind>),
     IOError(std::io::Error),
+    BufferWrite,
     ParseError(String),
     DBError,
     ConnectionClosed,
