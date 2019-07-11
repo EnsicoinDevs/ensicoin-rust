@@ -1,11 +1,20 @@
-extern crate reqwest;
+mod protocol;
+mod types;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-        assert_eq!(4 - 1, 3);
-        //quick maths
-    }
+pub use protocol::Http;
+
+#[macro_export]
+macro_rules! hash_map {
+    ( $( $key:expr => $val:expr ),* ) => {
+        {
+            use std::collections::HashMap;
+            let mut hash_map: HashMap<_, _> = HashMap::new();
+
+            $(
+                hash_map.insert($key, $val);
+            )*
+
+            hash_map
+        }
+    };
 }

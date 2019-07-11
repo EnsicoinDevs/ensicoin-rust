@@ -1,6 +1,3 @@
-extern crate protobuf_codegen_pure;
-// extern crate protoc_rust_grpc;
-
 fn main() {
     protobuf_codegen_pure::run(protobuf_codegen_pure::Args {
         out_dir: "src",

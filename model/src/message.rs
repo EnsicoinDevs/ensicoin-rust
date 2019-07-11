@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use crate::types::*;
 use crate::transaction::Transaction;
 use crate::block::Block;
+use utils::Error;
 
 //server messages
 #[derive(Debug)]
@@ -43,16 +44,11 @@ pub struct WhoAmI {
     service_count   : VarUint,
     services        : VarStr,
 } impl WhoAmI {
-    pub fn new() -> WhoAmI {
-        WhoAmI {
-            version         : 0,
-            from            : Address::from_string("46.193.66.26".to_string()).unwrap(),
-            service_count   : VarUint::from_u64(1),
-            services        : VarStr::from_string("node".to_string())
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn read(payload : Vec<u8>) -> WhoAmI {
+    pub fn read(payload : Vec<u8>) -> Self {
         println!("reading whoami message...");
         let mut version = payload[0..4].to_vec();
         version.reverse();
@@ -62,7 +58,7 @@ pub struct WhoAmI {
         let service_count = VarUint::new(&payload[30..].to_vec());
         let size = service_count.size() as usize;
         let services = VarStr::new(&payload[29+size..].to_vec());
-        WhoAmI {
+        Self {
             version,
             from: address,
             service_count,
@@ -72,7 +68,7 @@ pub struct WhoAmI {
 
     // handle incoming WhoAmI
     // send WhoAmI and WhoAmIAck
-    pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<u32, Box<bincode::ErrorKind>> {
+    pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<u32, Error> {
         println!("fully read incoming whoami, sending response");
         if !we_connected {
             // send WhoAmI
@@ -86,7 +82,7 @@ pub struct WhoAmI {
         }
         // send WhoAmIAck
         let mut buffer = Vec::new();
-        let magic : u32 = 422021; ////////////////// magic number
+        let magic : u32 = 42_2021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
         magic.reverse();
         buffer.append(&mut magic);
@@ -95,16 +91,15 @@ pub struct WhoAmI {
         buffer.append(&mut vec![0; 3]);
         buffer.append(&mut vec![0; 8]);
         if stream.write(&buffer)? != buffer.len() {
-            panic!("oops");
-            //TODO: change return error type to Error and return an Err here
+            return Err(Error::BufferWrite)
         }
 
         Ok(min(server_version, self.version))
     }
 
-    pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Box<bincode::ErrorKind>> {
+    pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Error> {
         let mut buffer = Vec::new();
-        let magic : u32 = 422021; ////////////////// magic number
+        let magic : u32 = 42_2021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
         magic.reverse();
         buffer.append(&mut magic);
@@ -122,13 +117,24 @@ pub struct WhoAmI {
         buffer.append(&mut message.service_count.send());
         buffer.append(&mut message.services.send());
         if stream.write(&buffer)? != buffer.len() {
-            panic!("oops");
-            //TODO: change return type to Error and return an Err here
+            return Err(Error::BufferWrite)
         }
         Ok(())
     }
 
 }
+
+impl Default for WhoAmI {
+    fn default() -> Self {
+        Self {
+            version         : 0,
+            from            : Address::from_string("46.193.66.26".to_string()).unwrap(),
+            service_count   : VarUint::from_u64(1),
+            services        : VarStr::from_string("node".to_string())
+        }
+    }
+}
+
 impl Size for WhoAmI {
     fn size(&self) -> u64 {
         4 + self.from.size() + self.service_count.size() + self.services.size()

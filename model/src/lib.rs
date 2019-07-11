@@ -1,6 +1,3 @@
-extern crate bincode;
-// extern crate utils;
-
 use bincode::deserialize;
 use bincode::serialize;
 use crate::message::Size;
@@ -17,14 +14,14 @@ pub use self::block::Block;
 pub use self::message::*;
 pub use self::transaction::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Address {
     timestamp: u64,
     ip: Vec<u8>,
     port: u16,
 }
 impl Address {
-    pub fn new(payload: Vec<u8>) -> Address {
+    pub fn new(payload: Vec<u8>) -> Self {
         let mut timestamp = payload[0..8].to_vec();
         let ip = payload[8..24].to_vec();
         let mut port = payload[24..].to_vec();
@@ -34,7 +31,7 @@ impl Address {
         port.reverse();
         let port: u16 = deserialize(&port).unwrap();
 
-        Address {
+        Self {
             timestamp,
             ip,
             port,
@@ -84,7 +81,7 @@ pub struct VarUint {
     pub value: u64,
 }
 impl VarUint {
-    pub fn new(payload: &[u8]) -> VarUint {
+    pub fn new(payload: &[u8]) -> Self {
         let mut size = payload[0];
         match size {
             0xFD => {
@@ -97,7 +94,7 @@ impl VarUint {
                 size = 8;
             }
             _ => {
-                return VarUint {
+                return Self {
                     size: 1,
                     value: u64::from(size),
                 };
@@ -108,14 +105,14 @@ impl VarUint {
         value.reverse();
         let value: u64 = deserialize(&value).unwrap();
 
-        VarUint {
+        Self {
             size,
             value,
         }
     }
 
-    pub fn from_u64(value: u64) -> VarUint {
-        VarUint {
+    pub fn from_u64(value: u64) -> Self {
+        Self {
             size: 8,
             value,
         }
@@ -154,19 +151,19 @@ pub struct VarStr {
     pub value: String,
 }
 impl VarStr {
-    pub fn new(payload: &[u8]) -> VarStr {
+    pub fn new(payload: &[u8]) -> Self {
         let length: VarUint = VarUint::new(payload);
         let size = length.size() as usize;
         let value = payload[size..length.value as usize].to_vec();
         let value = String::from_utf8(value).unwrap();
-        VarStr {
+        Self {
             size: length,
             value,
         }
     }
 
-    pub fn from_string(value: String) -> VarStr {
-        VarStr {
+    pub fn from_string(value: String) -> Self {
+        Self {
             size: VarUint::from_u64(value.len() as u64),
             value,
         }
@@ -190,14 +187,14 @@ pub struct InvVect {
     pub hash: Vec<u8>,
 }
 impl InvVect {
-    pub fn from_vec(array: Vec<u8>, hash_type: u32) -> InvVect {
-        InvVect {
+    pub fn from_vec(array: Vec<u8>, hash_type: u32) -> Self {
+        Self {
             hash_type,
             hash: array,
         }
     }
 
-    pub fn read(buffer: &[u8]) -> InvVect {
+    pub fn read(buffer: &[u8]) -> Self {
         let mut hash_type = buffer[0..4].to_vec();
         hash_type.reverse();
         let hash_type : u32 = deserialize(&hash_type).unwrap();

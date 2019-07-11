@@ -12,12 +12,14 @@ members = [
 name = "ensicoin-rust"
 version = "0.1.0"
 authors = ["Arttaaz <arttaaz@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 bincode         = "*"
 blockchain      = { path = "./blockchain" }
 dirs            = "*"
 grpc            = "0.6.1"
+matrix          = { path = "./matrix" }
 mempool         = { path = "./mempool" }
 model           = { path = "./model" }
 rpc             = { path = "./rpc" }

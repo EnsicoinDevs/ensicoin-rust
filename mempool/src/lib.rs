@@ -1,26 +1,30 @@
-extern crate blockchain;
-extern crate model;
-extern crate utils;
-
 use std::collections::HashMap;
 use model::transaction::*;
 use blockchain::Utxos;
 use utils::Error;
 
+#[derive(Debug)]
 pub struct Mempool {
     pub txs                 : HashMap<Vec<u8>, Transaction>,
     pub orphans             : HashMap<Vec<u8>, Transaction>,
     pub outpoints           : HashMap<Vec<u8>, Outpoint>,
     pub orphans_outpoints   : HashMap<Vec<u8>, Outpoint>
 }
-impl Mempool {
-    pub fn new() -> Mempool {
-        Mempool {
+
+impl Default for Mempool {
+    fn default() -> Self {
+        Self {
             txs                 : HashMap::new(),
             orphans             : HashMap::new(),
             outpoints           : HashMap::new(),
-            orphans_outpoints   : HashMap::new()
+            orphans_outpoints   : HashMap::new(),
         }
+    }
+}
+
+impl Mempool {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     // tx is not in self.txs and not in self.orphans

@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use blockchain::*;
 use mempool::Mempool;
 use model::message::*;
-use server::Peer;
-use server::KnownPeers;
+use crate::server::Peer;
+use crate::server::KnownPeers;
 use rpc;
 use rpc::discover_grpc::Discover;
 

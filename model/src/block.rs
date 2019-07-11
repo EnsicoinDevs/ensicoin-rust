@@ -6,7 +6,7 @@ use utils::Error;
 use utils::hash;
 use crate::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub version: u32,
     pub flags: Vec<VarStr>,

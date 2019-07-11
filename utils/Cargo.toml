@@ -8,6 +8,6 @@ edition = "2018"
 
 [dependencies]
 bincode         = "*"
-clap            = "2.32"
-sha2            = "0.8.0"
+sha2            = "0.8"
 sled            = "*"
+structopt       = "0.2"

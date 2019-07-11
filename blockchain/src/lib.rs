@@ -1,8 +1,3 @@
-extern crate dirs;
-extern crate model;
-extern crate sled;
-extern crate utils;
-
 use dirs::data_dir;
 use model::block::Block;
 use model::transaction::TxOut;
