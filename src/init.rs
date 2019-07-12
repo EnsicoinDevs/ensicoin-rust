@@ -9,6 +9,7 @@ use ::blockchain::Blockchain;
 #[derive(Deserialize, Serialize)]
 struct Config {
     blockchain_exists: bool,
+    matrix_access_token: String,
 }
 
 pub fn read_config() -> Result<(), Error> {

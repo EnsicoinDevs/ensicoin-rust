@@ -1,6 +1,6 @@
+use std::net::TcpListener;
 use std::net::SocketAddr;
 use std::net::TcpStream;
-use std::net;
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -14,7 +14,7 @@ use rpc;
 use rpc::discover_grpc::Discover;
 
 pub struct Server {
-    pub listener        : net::TcpListener,
+    pub listener        : TcpListener,
     pub server_version  : Arc<u32>,
         peers           : HashMap<SocketAddr, mpsc::Sender<ServerMessage>>,
         sender          : mpsc::Sender<ServerMessage>,
@@ -28,7 +28,7 @@ impl Server {
         let (tx, rx) = mpsc::channel();
         launch_discovery_server();
         Server {
-            listener        : net::TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
+            listener        : TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
             sender          : tx,

@@ -1,4 +1,4 @@
-mod init;
+pub mod init;
 mod server;
 use std::error::Error;
 use server::server::Server;
