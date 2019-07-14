@@ -103,8 +103,18 @@ impl VarUint {
     }
 
     pub fn from_u64(value: u64) -> Self {
+        let size;
+        if value < 252 {
+            size = 1;
+        } else if value < 0xFFFF {
+            size = 2;
+        } else if value < 0xFFFFFFFF {
+            size = 4;
+        } else {
+            size = 8;
+        }
         Self {
-            size: 8,
+            size,
             value,
         }
     }

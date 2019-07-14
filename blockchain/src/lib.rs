@@ -26,13 +26,18 @@ impl Blockchain {
 
     pub fn add_genesis_block() -> Result<(), Error> {
         let gen = Block::genesis_block()?;
-        Blockchain::insert_block(gen.hash()?, &gen)?;
+        dbg!(utils::hash_to_string(&gen.hash_header()?));
+        Blockchain::insert_block(gen.hash_header()?, &gen)?;
         Ok(())
     }
 
     pub fn get_block(hash: &[u8]) -> Result<Block, Error> {
         let db = Blockchain::open()?;
-        Ok(Block::read(&(&*db.get(hash)?.unwrap()).to_vec())?)
+        let b = match db.get(hash)? {
+            Some(b) => Block::read(&b)?,
+            None => return Err(Error::DBError),
+        };
+        Ok(b)
     }
 
     // pub fn get_blocks() -> Result<Vec<Block>, Error> {
@@ -62,7 +67,11 @@ impl NextHash {
 
     pub fn get_next_hash(hash: &[u8]) -> Result<Vec<u8>, Error> {
         let db = NextHash::open()?;
-        Ok((&*db.get(hash)?.unwrap()).to_vec())
+        let h = match db.get(hash)? {
+            Some(hash) => hash.to_vec(),
+            None => return Err(Error::DBError),
+        };
+        Ok(h)
     }
 
     pub fn insert_next_hash(hash : Vec<u8>, next_hash: Vec<u8>) -> Result<(), Error> {
@@ -86,7 +95,14 @@ impl Utxos {
 
     pub fn get_utxos(tx_hash : Vec<u8>) -> Result<Vec<TxOut>, Error> {
         let db = Utxos::open()?;
-        let utxos = (&*db.get(tx_hash)?.unwrap()).to_vec();
+        let v = match db.get(tx_hash)? {
+            Some(v) => v,
+            None => sled::IVec::from(&[]),
+        };
+        let utxos = (v).to_vec();
+        if utxos.is_empty() {
+            return Err(Error::DBError)
+        }
         let offset = 0;
         let mut result = Vec::new();
         while offset < utxos.len() {

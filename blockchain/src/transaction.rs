@@ -282,6 +282,9 @@ impl<'a> TxTxo<'a> {
             return false
         }
         //check all txos if said output is not already in some tx input in mainchain
+        for utxo in &self.txos {
+            
+        }
         true
     }
 }

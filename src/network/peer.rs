@@ -81,6 +81,7 @@ pub struct Peer {
 
         }
         else {
+            dbg!(&message_type);
             match message_type.as_str() {
                 "2plus2is4\u{0}\u{0}\u{0}" => {
                     println!("2 plus 2 is 4!");
@@ -109,6 +110,7 @@ pub struct Peer {
                 "getblocks\u{0}\u{0}\u{0}" => {
                     println!("Received getblocks");
                     let message = GetBlocks::read(&payload);
+                    dbg!(&message);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
                 "transaction\u{0}" => {
@@ -149,6 +151,7 @@ pub struct Peer {
                         },
                         ServerMessage::GetBlocksReply(hashs) => {
                             let inv = Inv::from_vec(hashs);
+                            dbg!(&inv);
                             let mut message = self.prepare_header("inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
                             message.append(&mut inv.send());
                             self.send(message);

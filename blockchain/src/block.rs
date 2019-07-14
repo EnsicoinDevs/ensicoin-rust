@@ -58,6 +58,7 @@ impl Block {
                     merkle_root: Vec::new(),
                     timestamp: elapsed.as_secs(),
                     height: 1,
+                    //TODO: compute difficulty
                     difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                     nonce: 0,
                     transactions: Vec::new(),
@@ -89,6 +90,12 @@ impl Block {
     pub fn hash(&self) -> Result<Vec<u8>, Error> {
         let mut block = self.send_header()?;
         block.append(&mut self.hash_transactions()?);
+        let result = hash::hash(block);
+        Ok(hash::hash(result))
+    }
+
+    pub fn hash_header(&self) -> Result<Vec<u8>, Error> {
+        let block = self.send_header()?;
         let result = hash::hash(block);
         Ok(hash::hash(result))
     }
