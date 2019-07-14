@@ -3,8 +3,8 @@ use std::fs::File;
 use std::io::{BufWriter, BufReader};
 use dirs::data_dir;
 
-use ::utils::Error;
-use ::blockchain::Blockchain;
+use utils::Error;
+use blockchain::Blockchain;
 
 #[derive(Deserialize, Serialize)]
 struct Config {

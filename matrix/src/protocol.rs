@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use dirs::data_dir;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -75,6 +76,21 @@ impl Http {
         }
 
         Ok(())
+    }
+
+    pub fn join_room(&self) -> Result<String, Error>{
+
+        let req : HashMap<String, String> = self.client.post(&format!(
+                "https://matrix.org/_matrix/client/r0/join/%23ensicoin%3Amatrix.org?access_token={}",
+                self.access_token
+            ))
+            .send()?
+            .json()?;
+        Ok(req.get("room_id").cloned().unwrap())
+    }
+
+    pub fn get_bots(&self, room_id: String) -> Result<Vec<String>, Error> {
+        unimplemented!()
     }
 
 }

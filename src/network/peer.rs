@@ -1,10 +1,11 @@
 use bincode::serialize;
 use bincode::deserialize;
-use model::message::*;
+use super::message::*;
 use std::net::TcpStream;
 use std::io::prelude::*;
 use utils::Error;
 use std::sync::mpsc;
+use utils::Size;
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -111,11 +112,11 @@ pub struct Peer {
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
                 "transaction\u{0}" => {
-                    let tx = ::model::transaction::Transaction::read(&payload);
+                    let tx = blockchain::transaction::Transaction::read(&payload);
                     self.server_sender.send(ServerMessage::AddTx(tx))?;
                 },
                 "block\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
-                    let block = ::model::block::Block::read(&payload)?;
+                    let block = blockchain::block::Block::read(&payload)?;
                     self.server_sender.send(ServerMessage::AddBlock(block))?;
                 },
                 _ => { println!("didn't understand message type: {}", message_type); dbg!(&payload);}
@@ -136,10 +137,10 @@ pub struct Peer {
                             let mut inventory = Vec::new();
                             let length = hashes.len();
                             for hash in hashes {
-                                inventory.push(model::types::InvVect::from_vec(hash, 0));
+                                inventory.push(model::InvVect::from_vec(hash, 0));
                             }
                             let message = Inv {
-                                count: model::types::VarUint::from_u64(length as u64),
+                                count: model::VarUint::from_u64(length as u64),
                                 inventory
                             };
                             let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();

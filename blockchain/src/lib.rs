@@ -1,8 +1,12 @@
+pub mod block;
+pub mod transaction;
+
 use dirs::data_dir;
-use model::block::Block;
-use model::transaction::TxOut;
+use block::Block;
+use transaction::TxOut;
 use sled::Db;
 use utils::error::Error;
+
 
 //////////////////////////////////////////////////////////////
 //

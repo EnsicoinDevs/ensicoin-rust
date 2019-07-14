@@ -1,10 +1,11 @@
 use bincode::{deserialize, serialize};
-use crate::message::Size;
+use model::*;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use super::transaction::*;
 use utils::Error;
 use utils::hash;
-use crate::*;
+use utils::Size;
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -86,7 +87,8 @@ impl Block {
      *  calcule le hash d'un bloc
      **/
     pub fn hash(&self) -> Result<Vec<u8>, Error> {
-        let block = self.send_header()?;
+        let mut block = self.send_header()?;
+        block.append(&mut self.hash_transactions()?);
         let result = hash::hash(block);
         Ok(hash::hash(result))
     }
@@ -123,6 +125,15 @@ impl Block {
         }
 
         //valid txs
+        let mut utxos : Vec<TxOut>;
+        let mut tx_txo : super::transaction::TxTxo;
+        for tx in &self.transactions[1..] {
+            utxos = super::Utxos::get_utxos(tx.hash().unwrap()).unwrap();
+            tx_txo = TxTxo::new(tx, utxos);
+            if !tx_txo.is_valid() {
+                return false
+            }
+        }
         true
     }
 

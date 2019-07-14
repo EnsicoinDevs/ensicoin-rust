@@ -1,17 +1,15 @@
-use std::net::TcpListener;
-use std::net::SocketAddr;
-use std::net::TcpStream;
-use std::thread;
-use std::sync::Arc;
-use std::sync::mpsc;
 use std::collections::HashMap;
+use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::sync::{Arc, mpsc};
+use std::thread;
+
 use blockchain::*;
 use mempool::Mempool;
-use model::message::*;
-use crate::server::Peer;
-use crate::server::KnownPeers;
+use super::message::*;
 use rpc;
 use rpc::discover_grpc::Discover;
+use super::Peer;
+use super::KnownPeers;
 
 pub struct Server {
     pub listener        : TcpListener,

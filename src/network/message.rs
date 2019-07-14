@@ -4,10 +4,11 @@ use bincode::{serialize, deserialize};
 use std::net::TcpStream;
 use std::io::prelude::*;
 use std::sync::mpsc;
-use crate::types::*;
-use crate::transaction::Transaction;
-use crate::block::Block;
+use model::*;
+use blockchain::transaction::Transaction;
+use blockchain::block::Block;
 use utils::Error;
+use utils::Size;
 
 //server messages
 #[derive(Debug)]
@@ -31,11 +32,6 @@ pub enum ServerMessage {
     ClosePeer(SocketAddr),
     CloseServer,
 }
-
-pub trait Size {
-    fn size(&self) -> u64;
-}
-
 
 #[derive(Debug)]
 pub struct WhoAmI {

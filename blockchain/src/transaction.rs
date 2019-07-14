@@ -1,9 +1,9 @@
 use bincode::deserialize;
 use bincode::serialize;
-use crate::message::Size;
-use crate::types::*;
-use utils::hash;
+use model::*;
 use utils::Error;
+use utils::hash;
+use utils::Size;
 
 #[derive(Debug, Clone)]
 pub struct Outpoint {
@@ -261,7 +261,7 @@ impl<'a> TxTxo<'a> {
 
     pub fn is_valid(&self) -> bool {
         if !self.tx.is_sane() {
-            return false;
+            return false
         }
 
         let mut entry_sum = 0;
@@ -274,10 +274,13 @@ impl<'a> TxTxo<'a> {
         }
 
         if output_sum >= entry_sum {
-            return false;
+            return false
         }
 
         //check is tx exists in main chain
+        if super::Utxos::tx_exist(self.tx.hash().unwrap()).unwrap() {
+            return false
+        }
         //check all txos if said output is not already in some tx input in mainchain
         true
     }

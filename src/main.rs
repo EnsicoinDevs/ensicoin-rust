@@ -1,7 +1,7 @@
 pub mod init;
-mod server;
+mod network;
 use std::error::Error;
-use server::server::Server;
+use network::server::Server;
 use utils::clp;
 
 fn main() -> Result<(), Box<dyn Error>> {
