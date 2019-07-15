@@ -27,7 +27,7 @@ pub fn read_config() -> Result<(), Error> {
         let mut path = data_dir().unwrap();
         path.push("ensicoin-rust/");
         path.push("config.json");
-        let f = File::open(path).unwrap();
+        let f = std::fs::OpenOptions::new().write(true).open(path).unwrap();
         let writer = BufWriter::new(f);
         serde_json::to_writer_pretty(writer, &config).unwrap();
     }

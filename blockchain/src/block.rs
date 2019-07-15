@@ -36,7 +36,7 @@ impl Block {
             merkle_root: vec![0; 32],
             timestamp: time,
             height: 0,
-            difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            difficulty: vec![0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             nonce: 42,
             transactions: Vec::new(),
             hash: Vec::new(),
@@ -59,7 +59,7 @@ impl Block {
                     timestamp: elapsed.as_secs(),
                     height: 1,
                     //TODO: compute difficulty
-                    difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    difficulty: vec![0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                     nonce: 0,
                     transactions: Vec::new(),
                     hash: Vec::new(),
@@ -212,7 +212,6 @@ impl Block {
 
         let prev_block = buffer[offset..offset + 32].to_vec();
         offset += 32;
-
         let merkle_root = buffer[offset..offset + 32].to_vec();
         offset += 32;
 

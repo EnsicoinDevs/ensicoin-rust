@@ -155,7 +155,7 @@ impl VarStr {
     pub fn new(payload: &[u8]) -> Self {
         let length: VarUint = VarUint::new(payload);
         let size = length.size() as usize;
-        let value = payload[size..length.value as usize].to_vec();
+        let value = payload[size..=length.value as usize].to_vec();
         let value = String::from_utf8(value).unwrap();
         Self {
             size: length,

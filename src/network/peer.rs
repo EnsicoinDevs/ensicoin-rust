@@ -1,5 +1,6 @@
 use bincode::serialize;
 use bincode::deserialize;
+use blockchain::Block;
 use super::message::*;
 use std::net::TcpStream;
 use std::io::prelude::*;
@@ -67,6 +68,12 @@ pub struct Peer {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
                         self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap()))?;
+
+                        let getblocks = GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]);
+                        let mut buffer = self.prepare_header("getblocks\u{0}\u{0}\u{0}".to_string(), getblocks.size())?;
+                        buffer.append(&mut getblocks.send());
+                        self.stream.write_all(&buffer)?;
+
                         println!("Handshake completed");
                     } else {
                         println!("reveiced whoamiack message before whoami message");
@@ -110,7 +117,6 @@ pub struct Peer {
                 "getblocks\u{0}\u{0}\u{0}" => {
                     println!("Received getblocks");
                     let message = GetBlocks::read(&payload);
-                    dbg!(&message);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message))?;
                 },
                 "transaction\u{0}" => {
@@ -145,13 +151,12 @@ pub struct Peer {
                                 count: model::VarUint::from_u64(length as u64),
                                 inventory
                             };
-                            let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();
+                            let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();
                             buffer.append(&mut message.send());
                             self.send(buffer);
                         },
                         ServerMessage::GetBlocksReply(hashs) => {
                             let inv = Inv::from_vec(hashs);
-                            dbg!(&inv);
                             let mut message = self.prepare_header("inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
                             message.append(&mut inv.send());
                             self.send(message);

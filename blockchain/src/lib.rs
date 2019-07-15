@@ -1,8 +1,8 @@
 pub mod block;
+pub use block::Block;
 pub mod transaction;
 
 use dirs::data_dir;
-use block::Block;
 use transaction::TxOut;
 use sled::Db;
 use utils::error::Error;
@@ -26,7 +26,6 @@ impl Blockchain {
 
     pub fn add_genesis_block() -> Result<(), Error> {
         let gen = Block::genesis_block()?;
-        dbg!(utils::hash_to_string(&gen.hash_header()?));
         Blockchain::insert_block(gen.hash_header()?, &gen)?;
         Ok(())
     }
@@ -39,11 +38,6 @@ impl Blockchain {
         };
         Ok(b)
     }
-
-    // pub fn get_blocks() -> Result<Vec<Block>, Error> {
-    //     let db = Blockchain::open()?;
-    //     db.iter().map( |x| Block::read(&x.unwrap().0) ).collect()
-    // }
 
     pub fn insert_block(hash: Vec<u8>, block: &Block) -> Result<(), Error> {
         let db = Blockchain::open()?;

@@ -198,6 +198,15 @@ pub struct GetBlocks {
     pub hash_stop       : Vec<u8>
 }
 impl GetBlocks {
+
+    pub fn from_hashes(hashes: Vec<Vec<u8>>, hash_stop: Vec<u8>) -> Self {
+        Self {
+            count: VarUint::from_u64(hashes.len() as u64),
+            block_locator: hashes,
+            hash_stop,
+        }
+    }
+
     pub fn read(buffer: &[u8]) -> GetBlocks {
         let count = VarUint::new(buffer);
         let mut offset : usize = count.size() as usize;
@@ -227,5 +236,10 @@ impl GetBlocks {
         buffer.append(&mut self.hash_stop.clone());
 
         buffer
+    }
+}
+impl Size for GetBlocks {
+    fn size(&self) -> u64 {
+        self.count.size() + 32 * self.block_locator.len() as u64 + 32
     }
 }
