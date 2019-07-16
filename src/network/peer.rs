@@ -40,58 +40,10 @@ pub struct Peer {
     }
 
     pub fn read_message(&mut self) -> Result<(), Error> {
-        let header = self.read_header()?;
-        let mut magic = header[0..4].to_vec();
-        magic.reverse();
-        let magic : u32 = deserialize(&magic)?;
-        if magic != 42_2021 {
-            println!("wrong magic number : {}", magic);
-            self.close().unwrap();
-        }
-        let message_type : String = String::from_utf8(header[4..16].to_vec())?;
-        let mut length = header[16..24].to_vec();
-        length.reverse();
-        let length : u64 = deserialize(&length)?;
-        let payload = self.read_payload(length as usize)?;
+        let (message_type, payload) = self.check_header()?;
+
         if self.connection_state != State::Acknowledged {
-            match message_type.as_str() {
-                "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
-                    if self.connection_state == State::Tcp {
-                        println!("Received message whoami");
-                        let message = WhoAmI::read(payload);
-                        let conn_ver = message.version;
-                        if !self.initiated_by_us {
-                            // send WhoAmI
-                            let message = Message::WhoAmI(WhoAmI::new(self.connection_version));
-                            self.send(message)?;
-                        }
-                        self.send(Message::WhoAmIAck)?;
-                        self.connection_version = min(conn_ver, self.connection_version);
-                        self.connection_state = State::WhoAmI;
-                    } else {
-                        println!("received unusual number of whoami");
-                        self.close()?;
-                    }
-                },
-                "whoamiack\u{0}\u{0}\u{0}" => {
-                    if self.connection_state == State::WhoAmI {
-                        self.connection_state = State::Acknowledged;
-                        self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap()))?;
-                        println!("Handshake completed");
-
-                        let getblocks = Message::GetBlocks(GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]));
-                        self.send(getblocks)?;
-                    } else {
-                        println!("reveiced whoamiack message before whoami message");
-                        self.close()?;
-                    }
-                },
-                _ => {
-                    println!("Recieved incorrect message_type : {:?}", message_type.as_str());
-                    self.close()?;
-                }
-            }
-
+            self.handle_handshake(message_type, payload)?;
         }
         else {
             dbg!(&message_type);
@@ -244,5 +196,62 @@ pub struct Peer {
         } else {
             Ok(vec![0])
         }
+    }
+    fn check_header(&mut self) -> Result<(String, Vec<u8>), Error> {
+        let header = self.read_header()?;
+        let mut magic = header[0..4].to_vec();
+        magic.reverse();
+        let magic : u32 = deserialize(&magic)?;
+        if magic != 42_2021 {
+            println!("wrong magic number : {}", magic);
+            self.close().unwrap();
+        }
+        let message_type : String = String::from_utf8(header[4..16].to_vec())?;
+        let mut length = header[16..24].to_vec();
+        length.reverse();
+        let length : u64 = deserialize(&length)?;
+        let payload = self.read_payload(length as usize)?;
+        Ok((message_type, payload))
+    }
+
+    fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>) -> Result<(), Error> {
+        match message_type.as_str() {
+            "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
+                if self.connection_state == State::Tcp {
+                    println!("Received message whoami");
+                    let message = WhoAmI::read(payload);
+                    let conn_ver = message.version;
+                    if !self.initiated_by_us {
+                        // send WhoAmI
+                        let message = Message::WhoAmI(WhoAmI::new(self.connection_version));
+                        self.send(message)?;
+                    }
+                    self.send(Message::WhoAmIAck)?;
+                    self.connection_version = min(conn_ver, self.connection_version);
+                    self.connection_state = State::WhoAmI;
+                } else {
+                    println!("received unusual number of whoami");
+                    self.close()?;
+                }
+            },
+            "whoamiack\u{0}\u{0}\u{0}" => {
+                if self.connection_state == State::WhoAmI {
+                    self.connection_state = State::Acknowledged;
+                    self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap()))?;
+                    println!("Handshake completed");
+
+                    let getblocks = Message::GetBlocks(GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]));
+                    self.send(getblocks)?;
+                } else {
+                    println!("reveiced whoamiack message before whoami message");
+                    self.close()?;
+                }
+            },
+            _ => {
+                println!("Recieved incorrect message_type : {:?}", message_type.as_str());
+                self.close()?;
+            }
+        }
+        Ok(())
     }
 }
