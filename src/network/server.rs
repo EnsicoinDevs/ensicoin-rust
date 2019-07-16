@@ -49,7 +49,7 @@ impl Server {
                 let stream = stream.unwrap().try_clone().unwrap();
                 let sender2 = sender.clone();
                 thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
-                    Peer::new(stream, sender2, false).update();
+                    Peer::new(stream, sender2, false).update().unwrap();
                 }).unwrap();
             }
         });
@@ -98,7 +98,7 @@ impl Server {
                         match TcpStream::connect(ip) {
                             Ok(tcp) => {
                                 thread::Builder::new().name(ip.to_string()).spawn( move || {
-                                Peer::new(tcp, sender, true).connect();
+                                Peer::new(tcp, sender, true).connect().unwrap();
                             }).unwrap(); },
                             Err(e) => println!("{}", e),
                         }

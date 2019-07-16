@@ -10,3 +10,7 @@ pub use self::merkle_tree::*;
 pub trait Size {
     fn size(&self) -> u64;
 }
+
+pub trait ToBytes {
+    fn send(&self) -> Vec<u8>;
+}

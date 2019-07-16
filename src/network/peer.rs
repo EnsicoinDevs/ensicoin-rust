@@ -1,12 +1,13 @@
+use std::cmp::min;
 use bincode::serialize;
 use bincode::deserialize;
-use blockchain::Block;
 use super::message::*;
 use std::net::TcpStream;
 use std::io::prelude::*;
 use utils::Error;
 use std::sync::mpsc;
 use utils::Size;
+use utils::ToBytes;
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -57,7 +58,15 @@ pub struct Peer {
                 "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     if self.connection_state == State::Tcp {
                         println!("Received message whoami");
-                        self.connection_version = WhoAmI::read(payload).handle(&self.stream, 1, self.initiated_by_us)?;
+                        let message = WhoAmI::read(payload);
+                        let conn_ver = message.version;
+                        if !self.initiated_by_us {
+                            // send WhoAmI
+                            let message = Message::WhoAmI(WhoAmI::new(self.connection_version));
+                            self.send(message)?;
+                        }
+                        self.send(Message::WhoAmIAck)?;
+                        self.connection_version = min(conn_ver, self.connection_version);
                         self.connection_state = State::WhoAmI;
                     } else {
                         println!("received unusual number of whoami");
@@ -68,13 +77,10 @@ pub struct Peer {
                     if self.connection_state == State::WhoAmI {
                         self.connection_state = State::Acknowledged;
                         self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), self.stream.peer_addr().unwrap()))?;
-
-                        let getblocks = GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]);
-                        let mut buffer = self.prepare_header("getblocks\u{0}\u{0}\u{0}".to_string(), getblocks.size())?;
-                        buffer.append(&mut getblocks.send());
-                        self.stream.write_all(&buffer)?;
-
                         println!("Handshake completed");
+
+                        let getblocks = Message::GetBlocks(GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]));
+                        self.send(getblocks)?;
                     } else {
                         println!("reveiced whoamiack message before whoami message");
                         self.close()?;
@@ -92,8 +98,8 @@ pub struct Peer {
             match message_type.as_str() {
                 "2plus2is4\u{0}\u{0}\u{0}" => {
                     println!("2 plus 2 is 4!");
-                    let message = self.prepare_header("minus1thats3".to_string(), 0)?;
-                    self.send(message);
+                    let message = Message::MinusOne;
+                    self.send(message)?;
                 },
                 "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let message = Inv::read(&payload);
@@ -133,7 +139,7 @@ pub struct Peer {
         Ok(())
     }
 
-    pub fn update(mut self) {
+    pub fn update(mut self) -> Result<(), Error>{
         loop {
             //try to read incoming server message
             match self.receiver.try_recv() {
@@ -147,27 +153,21 @@ pub struct Peer {
                             for hash in hashes {
                                 inventory.push(model::InvVect::from_vec(hash, 0));
                             }
-                            let message = Inv {
+                            let message = Message::Inv(Inv {
                                 count: model::VarUint::from_u64(length as u64),
                                 inventory
-                            };
-                            let mut buffer = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), message.size()).unwrap();
-                            buffer.append(&mut message.send());
-                            self.send(buffer);
+                            });
+                            self.send(message)?;
                         },
                         ServerMessage::GetBlocksReply(hashs) => {
-                            let inv = Inv::from_vec(hashs);
-                            let mut message = self.prepare_header("inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
-                            message.append(&mut inv.send());
-                            self.send(message);
+                            let message = Message::Inv(Inv::from_vec(hashs));
+                            self.send(message)?;
                         },
                         ServerMessage::AskBlocks(hashs) => {
-                            let inv = Inv::from_vec(hashs);
-                            let mut message = self.prepare_header("getdata\u{0}\u{0}\u{0}\u{0}\u{0}".to_string(), inv.size()).unwrap();
-                            message.append(&mut inv.send());
-                            self.send(message);
+                            let message = Message::Inv(Inv::from_vec(hashs));
+                            self.send(message)?;
                         },
-                        _                               => ()
+                        _   => ()
                     }
                 },
                 Err(e)  =>  if let std::sync::mpsc::TryRecvError::Disconnected = e {
@@ -190,14 +190,16 @@ pub struct Peer {
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        self.close().unwrap();
+        self.close()?;
+        Ok(())
     }
 
-    pub fn connect(self) {
-        let message = WhoAmI::new();
-        WhoAmI::send(message, &self.stream).unwrap();
-        self.update();
-        }
+    pub fn connect(mut self) -> Result<(), Error> {
+        let message = Message::WhoAmI(WhoAmI::default());
+        self.send(message)?;
+        self.update()?;
+        Ok(())
+    }
 
     fn close(&self) -> Result<(), Error>{
         self.server_sender.send(ServerMessage::DeletePeer(self.stream.peer_addr().unwrap())).unwrap();
@@ -205,7 +207,7 @@ pub struct Peer {
         Err(Error::ConnectionClosed)
     }
 
-    fn prepare_header(&self, message_type : String, size : u64) -> Result<Vec<u8>, Error> {
+    fn prepare_header(&self, message_type : &str, size : u64) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::new();
         let magic : u32 = 42_2021; ////////////////// magic number
         let mut magic = serialize(&magic)?;
@@ -221,8 +223,11 @@ pub struct Peer {
         Ok(buffer)
     }
 
-    fn send(&mut self, message : Vec<u8>) {
-        self.stream.write_all(&message).unwrap();
+    fn send(&mut self, message : Message) -> Result<(), Error> {
+        let mut buffer = self.prepare_header(message.name(), message.size())?;
+        buffer.append(&mut message.send());
+        self.stream.write_all(&buffer)?;
+        Ok(())
     }
 
     fn read_header(&mut self) -> Result<Vec<u8>, Error> {

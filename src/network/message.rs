@@ -1,14 +1,11 @@
 use std::net::SocketAddr;
-use std::cmp::min;
 use bincode::{serialize, deserialize};
-use std::net::TcpStream;
-use std::io::prelude::*;
 use std::sync::mpsc;
 use model::*;
 use blockchain::transaction::Transaction;
 use blockchain::block::Block;
-use utils::Error;
 use utils::Size;
+use utils::ToBytes;
 
 //server messages
 #[derive(Debug)]
@@ -33,15 +30,62 @@ pub enum ServerMessage {
     CloseServer,
 }
 
+#[allow(dead_code)]
+pub enum Message {
+    WhoAmI(WhoAmI),
+    WhoAmIAck,
+    Inv(Inv),
+    GetBlocks(GetBlocks),
+    TwoPlusTwo,
+    MinusOne,
+}
+
+impl Message {
+    pub fn name(&self) -> &str {
+        match self {
+            Message::WhoAmI(_)      => "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}",
+            Message::WhoAmIAck      => "whoamiack\u{0}\u{0}\u{0}",
+            Message::Inv(_)         => "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}",
+            Message::GetBlocks(_)   => "getblocks\u{0}\u{0}\u{0}",
+            Message::TwoPlusTwo     => "2plus2is4\u{0}\u{0}\u{0}",
+            Message::MinusOne       => "minus1thats3",
+        }
+    }
+}
+
+impl Size for Message {
+    fn size(&self) -> u64 {
+        match self {
+            Message::WhoAmI(m)      => m.size(),
+            Message::Inv(m)         => m.size(),
+            Message::GetBlocks(m)   => m.size(),
+            _                       => 0,
+        }
+    }
+}
+
+impl ToBytes for Message {
+    fn send(&self) -> Vec<u8> {
+        match self {
+            Message::WhoAmI(m) => m.send(),
+            Message::Inv(m) => m.send(),
+            Message::GetBlocks(m) => m.send(),
+            _ => Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct WhoAmI {
-    version         : u32,
+    pub version     : u32,
     from            : Address,
     service_count   : VarUint,
     services        : VarStr,
 } impl WhoAmI {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(version: u32) -> Self {
+        let mut m = Self::default();
+        m.version = version;
+        m
     }
 
     pub fn read(payload : Vec<u8>) -> Self {
@@ -61,63 +105,20 @@ pub struct WhoAmI {
             services,
         }
     }
+}
 
-    // handle incoming WhoAmI
-    // send WhoAmI and WhoAmIAck
-    pub fn handle(&self, mut stream: &TcpStream, server_version : u32, we_connected : bool) -> Result<u32, Error> {
-        println!("fully read incoming whoami, sending response");
-        if !we_connected {
-            // send WhoAmI
-            let message = WhoAmI {
-                version         : server_version,
-                from            : Address::from_string("46.193.66.26".to_owned()).unwrap(),
-                service_count   : VarUint::from_u64(1),
-                services        : VarStr::from_string("node".to_owned()),
-            };
-            WhoAmI::send(message, stream)?;
-        }
-        // send WhoAmIAck
+impl ToBytes for WhoAmI {
+    fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        let magic : u32 = 42_2021; ////////////////// magic number
-        let mut magic = serialize(&magic)?;
-        magic.reverse();
-        buffer.append(&mut magic);
-        let message_type = "whoamiack";
-        buffer.append(&mut message_type.as_bytes().to_vec());
-        buffer.append(&mut vec![0; 3]);
-        buffer.append(&mut vec![0; 8]);
-        if stream.write(&buffer)? != buffer.len() {
-            return Err(Error::BufferWrite)
-        }
 
-        Ok(min(server_version, self.version))
-    }
-
-    pub fn send(message: WhoAmI, mut stream: &TcpStream) -> Result<(), Error> {
-        let mut buffer = Vec::new();
-        let magic : u32 = 42_2021; ////////////////// magic number
-        let mut magic = serialize(&magic)?;
-        magic.reverse();
-        buffer.append(&mut magic);
-        let message_type = "whoami";
-        buffer.append(&mut message_type.as_bytes().to_vec());
-        buffer.append(&mut vec![0; 6]);
-        let mut size = serialize(&message.size())?;
-        size.reverse();
-        buffer.append(&mut size);
-
-        let mut version = serialize(&message.version)?;
+        let mut version = serialize(&self.version).unwrap();
         version.reverse();
         buffer.append(&mut version);
-        buffer.append(&mut message.from.send());
-        buffer.append(&mut message.service_count.send());
-        buffer.append(&mut message.services.send());
-        if stream.write(&buffer)? != buffer.len() {
-            return Err(Error::BufferWrite)
-        }
-        Ok(())
+        buffer.append(&mut self.from.send());
+        buffer.append(&mut self.service_count.send());
+        buffer.append(&mut self.services.send());
+        buffer
     }
-
 }
 
 impl Default for WhoAmI {
@@ -174,17 +175,19 @@ impl Inv {
             inventory
         }
     }
+}
 
-    pub fn send(self) -> Vec<u8> {
+impl ToBytes for Inv {
+    fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.append(&mut self.count.send());
-        for i in self.inventory {
+        for i in &self.inventory {
             buffer.append(&mut i.send());
         }
         buffer
     }
-
 }
+
 impl Size for Inv {
     fn size(&self) -> u64 {
         self.count.size() + 36 * (self.inventory.len() as u64)
@@ -224,8 +227,10 @@ impl GetBlocks {
             hash_stop
         }
     }
+}
 
-    pub fn send(&self) -> Vec<u8> {
+impl ToBytes for GetBlocks {
+    fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
 
         buffer.append(&mut self.count.send());
@@ -238,6 +243,7 @@ impl GetBlocks {
         buffer
     }
 }
+
 impl Size for GetBlocks {
     fn size(&self) -> u64 {
         self.count.size() + 32 * self.block_locator.len() as u64 + 32

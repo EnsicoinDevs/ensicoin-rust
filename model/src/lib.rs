@@ -206,12 +206,12 @@ impl InvVect {
         }
     }
 
-    pub fn send(mut self) -> Vec<u8> {
+    pub fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         let mut h_type = serialize(&self.hash_type).unwrap();
         h_type.reverse();
         buffer.append(&mut h_type);
-        buffer.append(&mut self.hash);
+        buffer.append(&mut self.hash.clone());
         buffer
     }
 }
