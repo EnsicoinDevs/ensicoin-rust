@@ -204,7 +204,7 @@ pub struct Peer {
         let magic : u32 = deserialize(&magic)?;
         if magic != 42_2021 {
             println!("wrong magic number : {}", magic);
-            self.close().unwrap();
+            self.close()?;
         }
         let message_type : String = String::from_utf8(header[4..16].to_vec())?;
         let mut length = header[16..24].to_vec();

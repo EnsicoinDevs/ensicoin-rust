@@ -48,9 +48,12 @@ impl Server {
                 println!("Incoming peer");
                 let stream = stream.unwrap().try_clone().unwrap();
                 let sender2 = sender.clone();
-                thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
+                match thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
                     Peer::new(stream, sender2, false).update().unwrap();
-                }).unwrap();
+                }) {
+                    Ok(_) => (),
+                    Err(e) => println!("Client stopped: {:?}", e),
+                }
             }
         });
         self.message_listener();
@@ -97,9 +100,13 @@ impl Server {
                         let ip = *ip;
                         match TcpStream::connect(ip) {
                             Ok(tcp) => {
-                                thread::Builder::new().name(ip.to_string()).spawn( move || {
+                                match thread::Builder::new().name(ip.to_string()).spawn( move || {
                                 Peer::new(tcp, sender, true).connect().unwrap();
-                            }).unwrap(); },
+                            }) {
+                                Ok(_) => (),
+                                Err(e) => println!("Peer stopped: {:?}", e),
+                            }
+                        },
                             Err(e) => println!("{}", e),
                         }
 
@@ -158,10 +165,10 @@ impl Server {
                             break;
                         }
                     }
-                    // if hashs.len() > 0 {
-                        sender.send(ServerMessage::GetBlocksReply(hashs)).unwrap();
-                    // }
-                    //maybe send entire blockchain otherwise?
+                    match sender.send(ServerMessage::GetBlocksReply(hashs)) {
+                        Ok(_) => (),
+                        Err(e) => println!("could not send message: {:?}", e),
+                    }
                 },
                 ServerMessage::AddTx(tx) => {
                     self.mempool.add_tx(tx).unwrap();
