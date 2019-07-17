@@ -92,8 +92,9 @@ impl VarUint {
             }
         }
 
-        let mut value = payload[1..size as usize].to_vec();
+        let mut value = payload[1..=size as usize].to_vec();
         value.reverse();
+        value.append(&mut vec![0; (8-size) as usize]);
         let value: u64 = deserialize(&value).unwrap();
 
         Self {
@@ -202,7 +203,7 @@ impl InvVect {
 
         InvVect {
             hash_type,
-            hash:   buffer[4..35].to_vec()
+            hash:   buffer[4..=34].to_vec()
         }
     }
 

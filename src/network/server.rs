@@ -174,16 +174,18 @@ impl Server {
                     self.mempool.add_tx(tx).unwrap();
                 },
                 ServerMessage::CheckBlocks(sender, hashs) => {
-                    let mut inv = Vec::new();
+                    let mut inv;
                     for hash in hashs {
-                        match Blockchain::get_block(hash) {
-                            Ok(_) => (),
-                            Err(_) => {
+                        inv = Vec::new();
+                        match Blockchain::has_block(hash) {
+                            Ok(true) => (),
+                            Ok(false) => {
                                 inv.push((hash.clone(), 1));
-                            }
+                                sender.send(ServerMessage::AskBlocks(inv)).unwrap();
+                            },
+                            Err(e) => println!("Something went wrong: {:?}", e),
                         }
                     }
-                    sender.send(ServerMessage::AskBlocks(inv)).unwrap();
                 },
                 ServerMessage::AddBlock(block) => {
                     Blockchain::insert_block(block.hash().unwrap(), block).unwrap();

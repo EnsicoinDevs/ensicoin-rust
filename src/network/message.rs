@@ -35,6 +35,7 @@ pub enum Message {
     WhoAmI(WhoAmI),
     WhoAmIAck,
     Inv(Inv),
+    GetData(Inv),
     GetBlocks(GetBlocks),
     TwoPlusTwo,
     MinusOne,
@@ -46,6 +47,7 @@ impl Message {
             Message::WhoAmI(_)      => "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}",
             Message::WhoAmIAck      => "whoamiack\u{0}\u{0}\u{0}",
             Message::Inv(_)         => "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}",
+            Message::GetData(_)     => "getdata\u{0}\u{0}\u{0}\u{0}\u{0}",
             Message::GetBlocks(_)   => "getblocks\u{0}\u{0}\u{0}",
             Message::TwoPlusTwo     => "2plus2is4\u{0}\u{0}\u{0}",
             Message::MinusOne       => "minus1thats3",
@@ -58,6 +60,7 @@ impl Size for Message {
         match self {
             Message::WhoAmI(m)      => m.size(),
             Message::Inv(m)         => m.size(),
+            Message::GetData(m)     => m.size(),
             Message::GetBlocks(m)   => m.size(),
             _                       => 0,
         }
@@ -69,6 +72,7 @@ impl ToBytes for Message {
         match self {
             Message::WhoAmI(m) => m.send(),
             Message::Inv(m) => m.send(),
+            Message::GetData(m) => m.send(),
             Message::GetBlocks(m) => m.send(),
             _ => Vec::new(),
         }

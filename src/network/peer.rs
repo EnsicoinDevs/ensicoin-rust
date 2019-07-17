@@ -46,7 +46,6 @@ pub struct Peer {
             self.handle_handshake(message_type, payload)?;
         }
         else {
-            dbg!(&message_type);
             match message_type.as_str() {
                 "2plus2is4\u{0}\u{0}\u{0}" => {
                     println!("2 plus 2 is 4!");
@@ -85,7 +84,7 @@ pub struct Peer {
                     let block = blockchain::block::Block::read(&payload)?;
                     self.server_sender.send(ServerMessage::AddBlock(block))?;
                 },
-                _ => { println!("didn't understand message type: {}", message_type); dbg!(&payload);}
+                _ => { println!("didn't understand message type: {}", message_type); }
             }
         }
         Ok(())
@@ -116,7 +115,8 @@ pub struct Peer {
                             self.send(message)?;
                         },
                         ServerMessage::AskBlocks(hashs) => {
-                            let message = Message::Inv(Inv::from_vec(hashs));
+                            println!("Asking blocks");
+                            let message = Message::GetData(Inv::from_vec(hashs));
                             self.send(message)?;
                         },
                         _   => ()
@@ -191,10 +191,13 @@ pub struct Peer {
     fn read_payload(&mut self, length : usize) -> Result<Vec<u8>, Error> {
         if length != 0 {
             let mut buffer = vec![0; length];
+            self.stream.set_nonblocking(false).unwrap();
             self.stream.read_exact(&mut buffer)?;
+            self.stream.set_nonblocking(true).unwrap();
+
             Ok(buffer)
         } else {
-            Ok(vec![0])
+            Ok(vec![])
         }
     }
     fn check_header(&mut self) -> Result<(String, Vec<u8>), Error> {

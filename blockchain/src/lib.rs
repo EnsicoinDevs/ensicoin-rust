@@ -39,6 +39,14 @@ impl Blockchain {
         Ok(b)
     }
 
+    pub fn has_block(hash: &[u8]) -> Result<bool, Error> {
+        let db = Blockchain::open()?;
+        match db.get(hash)? {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
     pub fn insert_block(hash: Vec<u8>, block: &Block) -> Result<(), Error> {
         let db = Blockchain::open()?;
         db.set(hash, block.send()?)?;
