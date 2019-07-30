@@ -22,6 +22,7 @@ pub struct Server {
 
 impl Server {
     pub fn new(port: u16) -> Server {
+        // dbg!(format!("{:?}", Blockchain::get_blocks().unwrap()));
         println!("Ensicoin started");
         let (tx, rx) = mpsc::channel();
         launch_discovery_server();

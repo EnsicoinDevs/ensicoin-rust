@@ -71,6 +71,10 @@ pub struct Peer {
                         self.server_sender.send(ServerMessage::CheckBlocks(self.sender.clone(), blocks))?;
                     }
                 },
+                "getdata\u{0}\u{0}\u{0}\u{0}\u{0}" => {
+                    let message = Message::GetData(Inv::read(&payload));
+                    dbg!(&message);
+                },
                 "getblocks\u{0}\u{0}\u{0}" => {
                     println!("Received getblocks");
                     let message = GetBlocks::read(&payload);

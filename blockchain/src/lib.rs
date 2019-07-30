@@ -39,6 +39,12 @@ impl Blockchain {
         Ok(b)
     }
 
+    pub fn get_blocks() -> Result<Vec<Block>, Error> {
+        let db = Blockchain::open()?;
+        let r : Vec<Block> = db.into_iter().map(|x| Block::read(&x.unwrap().1.to_vec()).unwrap()).collect();
+        Ok(r)
+    }
+
     pub fn has_block(hash: &[u8]) -> Result<bool, Error> {
         let db = Blockchain::open()?;
         match db.get(hash)? {

@@ -31,6 +31,7 @@ pub enum ServerMessage {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum Message {
     WhoAmI(WhoAmI),
     WhoAmIAck,
