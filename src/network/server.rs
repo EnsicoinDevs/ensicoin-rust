@@ -1,19 +1,30 @@
+<<<<<<< HEAD:src/server/server.rs
 use std::net::SocketAddr;
 use std::net::TcpStream;
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
+=======
+>>>>>>> master:src/network/server.rs
 use std::collections::HashMap;
+use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::sync::{Arc, mpsc};
+use std::thread;
+
 use blockchain::*;
 use mempool::Mempool;
-use model::message::*;
-use crate::server::Peer;
-use crate::server::KnownPeers;
+use super::message::*;
 use rpc;
 use rpc::discover_grpc::Discover;
+use super::Peer;
+use super::KnownPeers;
 
 pub struct Server {
+<<<<<<< HEAD:src/server/server.rs
     pub listener        : tokio::net::TcpListener,
+=======
+    pub listener        : TcpListener,
+>>>>>>> master:src/network/server.rs
     pub server_version  : Arc<u32>,
         peers           : HashMap<SocketAddr, mpsc::Sender<ServerMessage>>,
         sender          : mpsc::Sender<ServerMessage>,
@@ -23,11 +34,16 @@ pub struct Server {
 
 impl Server {
     pub fn new(port: u16) -> Server {
+        // dbg!(format!("{:?}", Blockchain::get_blocks().unwrap()));
         println!("Ensicoin started");
         let (tx, rx) = mpsc::channel();
         launch_discovery_server();
         Server {
+<<<<<<< HEAD:src/server/server.rs
             listener        : tokio::net::TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap(),
+=======
+            listener        : TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
+>>>>>>> master:src/network/server.rs
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
             sender          : tx,
@@ -49,9 +65,12 @@ impl Server {
                 let (stream, _) = listener.accept().await.unwrap();
                 println!("Incoming peer");
                 let sender2 = sender.clone();
-                thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
-                    Peer::new(stream, sender2, false).update();
-                }).unwrap();
+                match thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
+                    Peer::new(stream, sender2, false).update().unwrap();
+                }) {
+                    Ok(_) => (),
+                    Err(e) => println!("Client stopped: {:?}", e),
+                }
             }
         });
         self.message_listener();
@@ -99,9 +118,13 @@ impl Server {
                         let ip = *ip;
                         match TcpStream::connect(ip) {
                             Ok(tcp) => {
-                                thread::Builder::new().name(ip.to_string()).spawn( move || {
-                                Peer::new(tcp, sender, true).connect();
-                            }).unwrap(); },
+                                match thread::Builder::new().name(ip.to_string()).spawn( move || {
+                                Peer::new(tcp, sender, true).connect().unwrap();
+                            }) {
+                                Ok(_) => (),
+                                Err(e) => println!("Peer stopped: {:?}", e),
+                            }
+                        },
                             Err(e) => println!("{}", e),
                         }
 
@@ -160,25 +183,27 @@ impl Server {
                             break;
                         }
                     }
-                    // if hashs.len() > 0 {
-                        sender.send(ServerMessage::GetBlocksReply(hashs)).unwrap();
-                    // }
-                    //maybe send entire blockchain otherwise?
+                    match sender.send(ServerMessage::GetBlocksReply(hashs)) {
+                        Ok(_) => (),
+                        Err(e) => println!("could not send message: {:?}", e),
+                    }
                 },
                 ServerMessage::AddTx(tx) => {
                     self.mempool.add_tx(tx).unwrap();
                 },
                 ServerMessage::CheckBlocks(sender, hashs) => {
-                    let mut inv = Vec::new();
+                    let mut inv;
                     for hash in hashs {
-                        match Blockchain::get_block(hash) {
-                            Ok(_) => (),
-                            Err(_) => {
+                        inv = Vec::new();
+                        match Blockchain::has_block(hash) {
+                            Ok(true) => (),
+                            Ok(false) => {
                                 inv.push((hash.clone(), 1));
-                            }
+                                sender.send(ServerMessage::AskBlocks(inv)).unwrap();
+                            },
+                            Err(e) => println!("Something went wrong: {:?}", e),
                         }
                     }
-                    sender.send(ServerMessage::AskBlocks(inv)).unwrap();
                 },
                 ServerMessage::AddBlock(block) => {
                     Blockchain::insert_block(block.hash().unwrap(), block).unwrap();

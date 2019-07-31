@@ -2,30 +2,32 @@ use super::hash;
 
 pub fn compute_merkle_root(mut hashes: Vec<Vec<u8>>) -> Vec<u8> {
     if hashes.is_empty() {
-        return hash::hash(vec![]);
-    } //TODO: delete when blocks have always at least one tx
+        return vec![0; 32]
+    };
 
-    let mut val : Vec<u8>;
     if hashes.len() == 1 {
-        val = hashes[0].clone();
-        hashes.push(val);
-    }
+        hashes.push(hashes[0].clone());
+    };
 
     while hashes.len() > 1 {
-        if hashes.len()%2 != 0 {
-            val = hashes[hashes.len()-1].clone();
-            hashes.push(val);
+        if hashes.len() % 2 != 0 {
+            hashes.push(hashes.last().unwrap().clone());
         }
-        let mut left_hash : Vec<u8> = Vec::new();
+
+        let mut left_hash = hashes[0].clone();
         for i in 0..hashes.len() {
-            if i%2 != 0 {
-                left_hash.append(&mut hashes[i].clone());
-                hashes[(i+1)/2-1] = hash::hash(left_hash.clone());
+            let mut h = hashes[i].clone();
+
+            if i % 2 == 0 {
+                left_hash = h.clone();
             } else {
-                left_hash = hashes[i].clone();
+                let mut buffer = left_hash.clone();
+                buffer.append(&mut h);
+                hashes[((i + 1) / 2) - 1] = hash(hash(buffer.to_vec()));
             }
         }
-        hashes = hashes[..hashes.len()/2].to_vec();
+
+        hashes.split_off(hashes.len() / 2);
     }
 
     hashes[0].clone()

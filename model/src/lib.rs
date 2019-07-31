@@ -1,18 +1,9 @@
 use bincode::deserialize;
 use bincode::serialize;
-use crate::message::Size;
+use utils::Size;
 use std::net::IpAddr;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-
-pub mod block;
-pub mod message;
-pub mod transaction;
-pub mod types;
-
-pub use self::block::Block;
-pub use self::message::*;
-pub use self::transaction::*;
 
 #[derive(Debug, Clone)]
 pub struct Address {
@@ -101,8 +92,9 @@ impl VarUint {
             }
         }
 
-        let mut value = payload[1..size as usize].to_vec();
+        let mut value = payload[1..=size as usize].to_vec();
         value.reverse();
+        value.append(&mut vec![0; (8-size) as usize]);
         let value: u64 = deserialize(&value).unwrap();
 
         Self {
@@ -112,8 +104,18 @@ impl VarUint {
     }
 
     pub fn from_u64(value: u64) -> Self {
+        let size;
+        if value < 252 {
+            size = 1;
+        } else if value < 0xFFFF {
+            size = 2;
+        } else if value < 0xFFFFFFFF {
+            size = 4;
+        } else {
+            size = 8;
+        }
         Self {
-            size: 8,
+            size,
             value,
         }
     }
@@ -154,7 +156,7 @@ impl VarStr {
     pub fn new(payload: &[u8]) -> Self {
         let length: VarUint = VarUint::new(payload);
         let size = length.size() as usize;
-        let value = payload[size..length.value as usize].to_vec();
+        let value = payload[size..=length.value as usize].to_vec();
         let value = String::from_utf8(value).unwrap();
         Self {
             size: length,
@@ -201,16 +203,16 @@ impl InvVect {
 
         InvVect {
             hash_type,
-            hash:   buffer[4..35].to_vec()
+            hash:   buffer[4..=34].to_vec()
         }
     }
 
-    pub fn send(mut self) -> Vec<u8> {
+    pub fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         let mut h_type = serialize(&self.hash_type).unwrap();
         h_type.reverse();
         buffer.append(&mut h_type);
-        buffer.append(&mut self.hash);
+        buffer.append(&mut self.hash.clone());
         buffer
     }
 }

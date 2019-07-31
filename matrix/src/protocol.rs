@@ -1,7 +1,18 @@
+use std::collections::HashMap;
+use dirs::data_dir;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use reqwest::Client;
 use reqwest::StatusCode;
+use serde::{Deserialize, Serialize};
 use crate::hash_map;
 use crate::types::*;
+
+#[derive(Deserialize, Serialize)]
+pub struct Config {
+    blockchain_exists: bool,
+    matrix_access_token: String,
+}
 
 pub struct Http {
     client: Client,
@@ -13,11 +24,19 @@ pub struct Http {
 impl Http {
 
     pub fn new(username: String, password: String) -> Self {
+        let mut path = data_dir().unwrap();
+        path.push("ensicoin-rust/");
+        path.push("config.json");
+        let f = File::open(path).unwrap();
+        let reader = BufReader::new(f);
+
+        let config : Config = serde_json::from_reader(reader).unwrap();
+
         Self {
             client: Client::new(),
             username,
             password,
-            access_token: "".to_owned(),
+            access_token: config.matrix_access_token,
         }
     }
 
@@ -35,8 +54,23 @@ impl Http {
 
         match resp.status() {
             StatusCode::OK => {
-                let _data: RegisterResponse = resp.json()?;
+                let data: RegisterResponse = resp.json()?;
                 // store access_token into creditentials file
+                let mut path = data_dir().unwrap();
+                path.push("ensicoin-rust/");
+                path.push("config.json");
+                let f = File::open(path).unwrap();
+                let reader = BufReader::new(f);
+
+                let mut config : Config = serde_json::from_reader(reader).unwrap();
+                config.matrix_access_token = data.access_token().to_string();
+
+                let mut path = data_dir().unwrap();
+                path.push("ensicoin-rust/");
+                path.push("config.json");
+                let f = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+                let writer = BufWriter::new(f);
+                serde_json::to_writer_pretty(writer, &config).unwrap();
             },
             _ => return Err(Error::StatusCodeError),
         }
@@ -44,16 +78,19 @@ impl Http {
         Ok(())
     }
 
-    pub fn login(&self) -> Result<(), Error> {
-        let mut resp = self.client.get("https://matrix.org/_matrix/client/r0/login")
-        .send()?;
+    pub fn join_room(&self) -> Result<String, Error>{
 
-        match resp.status() {
-            StatusCode::OK => {
-                ()
-            },
-            _ => return Err(Error::StatusCodeError),
-        }
-        Ok(())
+        let req : HashMap<String, String> = self.client.post(&format!(
+                "https://matrix.org/_matrix/client/r0/join/%23ensicoin%3Amatrix.org?access_token={}",
+                self.access_token
+            ))
+            .send()?
+            .json()?;
+        Ok(req.get("room_id").cloned().unwrap())
     }
+
+    pub fn get_bots(&self, room_id: String) -> Result<Vec<String>, Error> {
+        unimplemented!()
+    }
+
 }

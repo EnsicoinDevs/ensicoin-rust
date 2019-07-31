@@ -1,8 +1,12 @@
+pub mod block;
+pub use block::Block;
+pub mod transaction;
+
 use dirs::data_dir;
-use model::block::Block;
-use model::transaction::TxOut;
+use transaction::TxOut;
 use sled::Db;
 use utils::error::Error;
+
 
 //////////////////////////////////////////////////////////////
 //
@@ -22,19 +26,32 @@ impl Blockchain {
 
     pub fn add_genesis_block() -> Result<(), Error> {
         let gen = Block::genesis_block()?;
-        Blockchain::insert_block(gen.hash()?, &gen)?;
+        Blockchain::insert_block(gen.hash_header()?, &gen)?;
         Ok(())
     }
 
     pub fn get_block(hash: &[u8]) -> Result<Block, Error> {
         let db = Blockchain::open()?;
-        Ok(Block::read(&(&*db.get(hash)?.unwrap()).to_vec())?)
+        let b = match db.get(hash)? {
+            Some(b) => Block::read(&b)?,
+            None => return Err(Error::DBError),
+        };
+        Ok(b)
     }
 
-    // pub fn get_blocks() -> Result<Vec<Block>, Error> {
-    //     let db = Blockchain::open()?;
-    //     db.iter().map( |x| Block::read(&x.unwrap().0) ).collect()
-    // }
+    pub fn get_blocks() -> Result<Vec<Block>, Error> {
+        let db = Blockchain::open()?;
+        let r : Vec<Block> = db.into_iter().map(|x| Block::read(&x.unwrap().1.to_vec()).unwrap()).collect();
+        Ok(r)
+    }
+
+    pub fn has_block(hash: &[u8]) -> Result<bool, Error> {
+        let db = Blockchain::open()?;
+        match db.get(hash)? {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
 
     pub fn insert_block(hash: Vec<u8>, block: &Block) -> Result<(), Error> {
         let db = Blockchain::open()?;
@@ -58,7 +75,11 @@ impl NextHash {
 
     pub fn get_next_hash(hash: &[u8]) -> Result<Vec<u8>, Error> {
         let db = NextHash::open()?;
-        Ok((&*db.get(hash)?.unwrap()).to_vec())
+        let h = match db.get(hash)? {
+            Some(hash) => hash.to_vec(),
+            None => return Err(Error::DBError),
+        };
+        Ok(h)
     }
 
     pub fn insert_next_hash(hash : Vec<u8>, next_hash: Vec<u8>) -> Result<(), Error> {
@@ -82,7 +103,14 @@ impl Utxos {
 
     pub fn get_utxos(tx_hash : Vec<u8>) -> Result<Vec<TxOut>, Error> {
         let db = Utxos::open()?;
-        let utxos = (&*db.get(tx_hash)?.unwrap()).to_vec();
+        let v = match db.get(tx_hash)? {
+            Some(v) => v,
+            None => sled::IVec::from(&[]),
+        };
+        let utxos = (v).to_vec();
+        if utxos.is_empty() {
+            return Err(Error::DBError)
+        }
         let offset = 0;
         let mut result = Vec::new();
         while offset < utxos.len() {

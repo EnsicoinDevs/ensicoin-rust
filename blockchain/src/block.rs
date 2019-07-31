@@ -1,10 +1,11 @@
 use bincode::{deserialize, serialize};
-use crate::message::Size;
+use model::*;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use super::transaction::*;
 use utils::Error;
 use utils::hash;
-use crate::*;
+use utils::Size;
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -35,7 +36,7 @@ impl Block {
             merkle_root: vec![0; 32],
             timestamp: time,
             height: 0,
-            difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            difficulty: vec![0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             nonce: 42,
             transactions: Vec::new(),
             hash: Vec::new(),
@@ -57,7 +58,8 @@ impl Block {
                     merkle_root: Vec::new(),
                     timestamp: elapsed.as_secs(),
                     height: 1,
-                    difficulty: vec![0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    //TODO: compute difficulty
+                    difficulty: vec![0,0,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
                     nonce: 0,
                     transactions: Vec::new(),
                     hash: Vec::new(),
@@ -86,6 +88,13 @@ impl Block {
      *  calcule le hash d'un bloc
      **/
     pub fn hash(&self) -> Result<Vec<u8>, Error> {
+        let mut block = self.send_header()?;
+        block.append(&mut self.hash_transactions()?);
+        let result = hash::hash(block);
+        Ok(hash::hash(result))
+    }
+
+    pub fn hash_header(&self) -> Result<Vec<u8>, Error> {
         let block = self.send_header()?;
         let result = hash::hash(block);
         Ok(hash::hash(result))
@@ -123,6 +132,15 @@ impl Block {
         }
 
         //valid txs
+        let mut utxos : Vec<TxOut>;
+        let mut tx_txo : super::transaction::TxTxo;
+        for tx in &self.transactions[1..] {
+            utxos = super::Utxos::get_utxos(tx.hash().unwrap()).unwrap();
+            tx_txo = TxTxo::new(tx, utxos);
+            if !tx_txo.is_valid() {
+                return false
+            }
+        }
         true
     }
 
@@ -194,7 +212,6 @@ impl Block {
 
         let prev_block = buffer[offset..offset + 32].to_vec();
         offset += 32;
-
         let merkle_root = buffer[offset..offset + 32].to_vec();
         offset += 32;
 

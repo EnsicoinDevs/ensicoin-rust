@@ -9,7 +9,7 @@ members = [
 ]
 
 [package]
-name = "ensicoin-rust"
+name = "ensicoin_rust"
 version = "0.1.0"
 authors = ["Arttaaz <arttaaz@gmail.com>"]
 edition = "2018"

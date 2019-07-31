@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use model::transaction::*;
+use blockchain::transaction::*;
 use blockchain::Utxos;
 use utils::Error;
 

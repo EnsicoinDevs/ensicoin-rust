@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 #![feature(async_await)]
 mod init;
 mod server;
+=======
+pub mod init;
+mod network;
+>>>>>>> master
 use std::error::Error;
-use server::server::Server;
+use network::server::Server;
 use utils::clp;
 
 #[tokio::main]

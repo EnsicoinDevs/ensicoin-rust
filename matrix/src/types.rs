@@ -8,10 +8,11 @@ pub struct RegisterResponse {
     user_id: String,
 }
 
-// pub struct LoginTypeResponse {
-//     flow: Vec[]
-// }
-
+impl RegisterResponse {
+    pub fn access_token(&self) -> &String {
+        &self.access_token
+    }
+}
 
 pub enum Error {
     ReqwestError(reqwest::Error),
