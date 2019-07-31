@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 use std::net::TcpStream;
-use std::net;
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -14,7 +13,7 @@ use rpc;
 use rpc::discover_grpc::Discover;
 
 pub struct Server {
-    pub listener        : net::TcpListener,
+    pub listener        : tokio::net::TcpListener,
     pub server_version  : Arc<u32>,
         peers           : HashMap<SocketAddr, mpsc::Sender<ServerMessage>>,
         sender          : mpsc::Sender<ServerMessage>,
@@ -28,7 +27,7 @@ impl Server {
         let (tx, rx) = mpsc::channel();
         launch_discovery_server();
         Server {
-            listener        : net::TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
+            listener        : tokio::net::TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap(),
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
             sender          : tx,
@@ -37,18 +36,18 @@ impl Server {
         }
     }
 
-    pub fn listen(&mut self) {
+    pub async fn listen(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let sender = self.sender.clone();
         thread::spawn(move || {
             peer_routine(sender);
         });
 
-        let listener = self.listener.try_clone().unwrap();
+        let listener = self.listener;
         let sender = self.sender.clone();
-        thread::spawn(move || {
-            for stream in listener.incoming() {
+        tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
                 println!("Incoming peer");
-                let stream = stream.unwrap().try_clone().unwrap();
                 let sender2 = sender.clone();
                 thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
                     Peer::new(stream, sender2, false).update();
@@ -56,6 +55,7 @@ impl Server {
             }
         });
         self.message_listener();
+        Ok(())
     }
 
     pub fn interactive(&self) {

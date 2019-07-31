@@ -1,7 +1,7 @@
 use bincode::serialize;
 use bincode::deserialize;
 use model::message::*;
-use std::net::TcpStream;
+use tokio::net::TcpStream;
 use std::io::prelude::*;
 use utils::Error;
 use std::sync::mpsc;
@@ -24,7 +24,6 @@ pub struct Peer {
 } impl Peer {
     pub fn new(s : TcpStream, server_sender : mpsc::Sender<ServerMessage>, initiated_by_us : bool) -> Peer {
         let (tx, rx) = mpsc::channel();
-        s.set_nonblocking(true).unwrap();
         Peer {
             stream              : s,
             server_sender,

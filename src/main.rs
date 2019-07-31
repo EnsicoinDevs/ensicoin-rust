@@ -1,10 +1,12 @@
+#![feature(async_await)]
 mod init;
 mod server;
 use std::error::Error;
 use server::server::Server;
 use utils::clp;
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // matrix::Http::new().register("hey", "secret");
     let args = clp::args();
     init::read_config()?;
