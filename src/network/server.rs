@@ -1,15 +1,9 @@
-<<<<<<< HEAD:src/server/server.rs
-use std::net::SocketAddr;
-use std::net::TcpStream;
-use std::thread;
-use std::sync::Arc;
-use std::sync::mpsc;
-=======
->>>>>>> master:src/network/server.rs
 use std::collections::HashMap;
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::sync::{Arc, mpsc};
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::thread;
+use tokio::net::{ TcpListener, TcpStream };
+use tokio::sync::mpsc;
 
 use blockchain::*;
 use mempool::Mempool;
@@ -20,11 +14,6 @@ use super::Peer;
 use super::KnownPeers;
 
 pub struct Server {
-<<<<<<< HEAD:src/server/server.rs
-    pub listener        : tokio::net::TcpListener,
-=======
-    pub listener        : TcpListener,
->>>>>>> master:src/network/server.rs
     pub server_version  : Arc<u32>,
         peers           : HashMap<SocketAddr, mpsc::Sender<ServerMessage>>,
         sender          : mpsc::Sender<ServerMessage>,
@@ -33,17 +22,12 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(port: u16) -> Server {
+    pub fn new() -> Server {
         // dbg!(format!("{:?}", Blockchain::get_blocks().unwrap()));
         println!("Ensicoin started");
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel(512);
         launch_discovery_server();
         Server {
-<<<<<<< HEAD:src/server/server.rs
-            listener        : tokio::net::TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap(),
-=======
-            listener        : TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap(),
->>>>>>> master:src/network/server.rs
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
             sender          : tx,
@@ -52,34 +36,31 @@ impl Server {
         }
     }
 
-    pub async fn listen(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn listen(self, port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let sender = self.sender.clone();
-        thread::spawn(move || {
-            peer_routine(sender);
+        tokio::spawn(async move {
+            peer_routine(sender).await;
         });
 
-        let listener = self.listener;
+        let mut listener = TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap();
         let sender = self.sender.clone();
         tokio::spawn(async move {
             loop {
                 let (stream, _) = listener.accept().await.unwrap();
                 println!("Incoming peer");
                 let sender2 = sender.clone();
-                match thread::Builder::new().name(stream.peer_addr().unwrap().to_string()).spawn(move || {
-                    Peer::new(stream, sender2, false).update().unwrap();
-                }) {
-                    Ok(_) => (),
-                    Err(e) => println!("Client stopped: {:?}", e),
-                }
+                tokio::spawn(async move {
+                    Peer::new(stream, sender2, false).update().await.unwrap();
+                });
             }
         });
-        self.message_listener();
+        self.message_listener().await;
         Ok(())
     }
 
-    pub fn interactive(&self) {
-        let sender = self.sender.clone();
-        thread::spawn(move || {
+    pub async fn interactive(&self) {
+        let mut sender = self.sender.clone();
+        tokio::spawn(async move {
             let mut command : String = "".into();
             let mut ip : String = "".into();
             loop {
@@ -89,16 +70,16 @@ impl Server {
                         println!("Enter a valid ip address: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(ServerMessage::CreatePeer(ip.parse().unwrap())).unwrap();
+                        sender.send(ServerMessage::CreatePeer(ip.parse().unwrap())).await.unwrap();
                     },
                     "close\n" => {
                         println!("Enter a peer address to close: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(ServerMessage::ClosePeer(ip.parse().unwrap())).unwrap();
+                        sender.send(ServerMessage::ClosePeer(ip.parse().unwrap())).await.unwrap();
                     },
                     "exit\n" => {
-                        sender.send(ServerMessage::CloseServer).unwrap();
+                        sender.send(ServerMessage::CloseServer).await.unwrap();
                     },
                     _ => ()
                 }
@@ -108,22 +89,19 @@ impl Server {
         });
     }
 
-    pub fn message_listener(&mut self) {
+    pub async fn message_listener(mut self) {
         loop {
-            let message = self.receiver.recv().unwrap();
-            match &message {
+            let message = self.receiver.recv().await.unwrap();
+            match message {
                 ServerMessage::CreatePeer(ip) => {
                     if !self.peers.contains_key(&ip) {
                         let sender = self.sender.clone();
-                        let ip = *ip;
-                        match TcpStream::connect(ip) {
+                        let ip = ip;
+                        match TcpStream::connect(&ip).await {
                             Ok(tcp) => {
-                                match thread::Builder::new().name(ip.to_string()).spawn( move || {
-                                Peer::new(tcp, sender, true).connect().unwrap();
-                            }) {
-                                Ok(_) => (),
-                                Err(e) => println!("Peer stopped: {:?}", e),
-                            }
+                                tokio::spawn(async move {
+                                Peer::new(tcp, sender, true).connect().await.unwrap();
+                            });
                         },
                             Err(e) => println!("{}", e),
                         }
@@ -131,8 +109,8 @@ impl Server {
                     }
                 },
                 ServerMessage::AddPeer(sender, ip) => {
-                    self.peers.insert(*ip, sender.clone());
-                    match KnownPeers.add_peer((*ip).to_string()) {
+                    self.peers.insert(ip, sender.clone());
+                    match KnownPeers.add_peer((ip).to_string()) {
                         Ok(_) => (),
                         Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
                     }
@@ -141,7 +119,7 @@ impl Server {
                     if self.peers.contains_key(&ip) {
                         self.peers.remove(&ip);
                     }
-                    match KnownPeers.del_peer((*ip).to_string()) {
+                    match KnownPeers.del_peer((ip).to_string()) {
                         Ok(_) => (),
                         Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
                     }
@@ -150,25 +128,25 @@ impl Server {
                 },
                 ServerMessage::ClosePeer(ip) => {
                     if self.peers.contains_key(&ip) {
-                        self.peers.get(&ip).unwrap().send(ServerMessage::CloseConnection).unwrap();
+                        self.peers.get_mut(&ip).unwrap().send(ServerMessage::CloseConnection).await.unwrap();
                     }
                 },
                 ServerMessage::CloseServer => {
-                    for p in self.peers.values() {
-                        p.send(ServerMessage::CloseConnection).unwrap();
+                    for p in self.peers.values_mut() {
+                        p.send(ServerMessage::CloseConnection).await.unwrap();
                     }
                     panic!("Ensicoin stopped");
                 },
-                ServerMessage::CheckTxs(sender, hashes) => {
+                ServerMessage::CheckTxs(mut sender, hashes) => {
                     let mut inventory = Vec::new();
                     for hash in hashes {
                         if !self.mempool.contains_tx(hash.to_vec()) {
                             inventory.push(hash.to_vec());
                         }
                     }
-                    sender.send(ServerMessage::AskTxs(inventory)).unwrap();
+                    sender.send(ServerMessage::AskTxs(inventory)).await.unwrap();
                 },
-                ServerMessage::GetBlocks(sender, message) => {
+                ServerMessage::GetBlocks(mut sender, message) => {
                     let mut hashs = Vec::new();
                     for hash in &message.block_locator {
                         if let Ok(b) = Blockchain::get_block(&hash) {
@@ -183,30 +161,30 @@ impl Server {
                             break;
                         }
                     }
-                    match sender.send(ServerMessage::GetBlocksReply(hashs)) {
+                    match sender.send(ServerMessage::GetBlocksReply(hashs)).await {
                         Ok(_) => (),
                         Err(e) => println!("could not send message: {:?}", e),
                     }
                 },
                 ServerMessage::AddTx(tx) => {
-                    self.mempool.add_tx(tx).unwrap();
+                    self.mempool.add_tx(&tx).unwrap();
                 },
-                ServerMessage::CheckBlocks(sender, hashs) => {
+                ServerMessage::CheckBlocks(mut sender, hashs) => {
                     let mut inv;
                     for hash in hashs {
                         inv = Vec::new();
-                        match Blockchain::has_block(hash) {
+                        match Blockchain::has_block(&hash) {
                             Ok(true) => (),
                             Ok(false) => {
                                 inv.push((hash.clone(), 1));
-                                sender.send(ServerMessage::AskBlocks(inv)).unwrap();
+                                sender.send(ServerMessage::AskBlocks(inv)).await.unwrap();
                             },
                             Err(e) => println!("Something went wrong: {:?}", e),
                         }
                     }
                 },
                 ServerMessage::AddBlock(block) => {
-                    Blockchain::insert_block(block.hash().unwrap(), block).unwrap();
+                    Blockchain::insert_block(block.hash().unwrap(), &block).unwrap();
                 },
                 _ => ()
             }
@@ -246,12 +224,12 @@ fn launch_discovery_server() {
     });
 }
 
-fn peer_routine(sender: std::sync::mpsc::Sender<ServerMessage>) {
+async fn peer_routine(mut sender: tokio::sync::mpsc::Sender<ServerMessage>) {
     let db = KnownPeers;
     loop {
         let peers = db.get_peers().unwrap();
         for p in peers {
-            sender.send(ServerMessage::CreatePeer(p.parse().unwrap())).unwrap();
+            sender.send(ServerMessage::CreatePeer(p.parse().unwrap())).await.unwrap();
         }
 
         thread::sleep(std::time::Duration::from_secs(180));

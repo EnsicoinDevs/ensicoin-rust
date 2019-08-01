@@ -36,8 +36,8 @@ impl From<std::string::FromUtf8Error> for Error {
     }
 }
 
-impl<T> From<std::sync::mpsc::SendError<T>> for Error {
-    fn from(_: std::sync::mpsc::SendError<T>) -> Error {
+impl From<tokio::sync::mpsc::error::SendError> for Error {
+    fn from(_: tokio::sync::mpsc::error::SendError) -> Error {
         Error::ConnectionClosed
     }
 }

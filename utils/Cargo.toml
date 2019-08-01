@@ -11,3 +11,4 @@ bincode         = "*"
 sha2            = "0.8"
 sled            = "*"
 structopt       = "0.2"
+tokio           = { git = "https://github.com/tokio-rs/tokio/" }
