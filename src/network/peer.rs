@@ -37,18 +37,18 @@ pub struct Peer {
             server_sender,
             sender,
             // receiver,
-            connection_version  : tokio::sync::lock::Lock::new(1),
+            connection_version  : Lock::new(1),
             initiated_by_us,
-            connection_state    : tokio::sync::lock::Lock::new(State::Tcp),
+            connection_state    : Lock::new(State::Tcp),
         }
     }
 
     pub async fn read_message(&mut self) -> Result<(), Error> {
-        let (message_type, payload) = self.check_header().await?;
-        let state = self.connection_state.lock().await;
         let mut stream = self.stream.lock().await;
+        let (message_type, payload) = self.check_header(&mut stream).await?;
+        let state = self.connection_state.lock().await;
         if *state != State::Acknowledged {
-            self.handle_handshake(message_type, payload, state).await?;
+            self.handle_handshake(message_type, payload, state, &mut stream).await?;
         }
         else {
             drop(state);
@@ -127,6 +127,7 @@ pub struct Peer {
         let mut stream = self.stream.lock().await;
         let message = Message::WhoAmI(WhoAmI::default());
         Peer::send(message, &mut *stream).await?;
+        drop(stream);
         self.update().await?;
         Ok(())
     }
@@ -161,17 +162,15 @@ pub struct Peer {
         Ok(())
     }
 
-    async fn read_header(&mut self) -> Result<Vec<u8>, Error> {
+    async fn read_header(&mut self, stream: &mut TcpStream) -> Result<Vec<u8>, Error> {
         let mut buffer : [u8; 24] = [0; 24];
-        let mut stream = self.stream.lock().await;
         stream.read_exact(&mut buffer).await?;
         Ok(buffer.to_vec())
     }
 
-    async fn read_payload(&mut self, length : usize) -> Result<Vec<u8>, Error> {
+    async fn read_payload(&mut self, length : usize, stream: &mut TcpStream) -> Result<Vec<u8>, Error> {
         if length != 0 {
             let mut buffer = vec![0; length];
-            let mut stream = self.stream.lock().await;
             stream.read_exact(&mut buffer).await?;
 
             Ok(buffer)
@@ -179,25 +178,24 @@ pub struct Peer {
             Ok(vec![])
         }
     }
-    async fn check_header(&mut self) -> Result<(String, Vec<u8>), Error> {
-        let header = self.read_header().await?;
+    async fn check_header(&mut self, stream: &mut TcpStream) -> Result<(String, Vec<u8>), Error> {
+        let header = self.read_header(stream).await?;
         let mut magic = header[0..4].to_vec();
         magic.reverse();
         let magic : u32 = deserialize(&magic)?;
         if magic != 42_2021 {
             println!("wrong magic number : {}", magic);
-            self.close().await?;
+            return Err(Error::ConnectionClosed)
         }
         let message_type : String = String::from_utf8(header[4..16].to_vec())?;
         let mut length = header[16..24].to_vec();
         length.reverse();
         let length : u64 = deserialize(&length)?;
-        let payload = self.read_payload(length as usize).await?;
+        let payload = self.read_payload(length as usize, stream).await?;
         Ok((message_type, payload))
     }
 
-    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::lock::LockGuard<State>) -> Result<(), Error> {
-        let mut stream = self.stream.lock().await;
+    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::lock::LockGuard<State>, stream: &mut TcpStream) -> Result<(), Error> {
         match message_type.as_str() {
             "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                 if *state == State::Tcp {
@@ -208,14 +206,14 @@ pub struct Peer {
                     if !self.initiated_by_us {
                         // send WhoAmI
                         let message = Message::WhoAmI(WhoAmI::new(*conn_ver));
-                        Peer::send(message, &mut *stream).await?;
+                        Peer::send(message, stream).await?;
                     }
-                    Peer::send(Message::WhoAmIAck, &mut *stream).await?;
+                    Peer::send(Message::WhoAmIAck, stream).await?;
                     *conn_ver = min(message_ver, *conn_ver);
                     *state = State::WhoAmI;
                 } else {
                     println!("received unusual number of whoami");
-                    self.close().await?;
+                    return Err(Error::ConnectionClosed)
                 }
             },
             "whoamiack\u{0}\u{0}\u{0}" => {
@@ -225,15 +223,15 @@ pub struct Peer {
                     println!("Handshake completed");
 
                     let getblocks = Message::GetBlocks(GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]));
-                    Peer::send(getblocks, &mut *stream).await?;
+                    Peer::send(getblocks, stream).await?;
                 } else {
                     println!("reveiced whoamiack message before whoami message");
-                    self.close().await?;
+                    return Err(Error::ConnectionClosed)
                 }
             },
             _ => {
                 println!("Recieved incorrect message_type : {:?}", message_type.as_str());
-                self.close().await?;
+                return Err(Error::ConnectionClosed)
             }
         }
         Ok(())
