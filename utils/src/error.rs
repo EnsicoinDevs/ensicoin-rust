@@ -6,6 +6,8 @@ pub enum Error {
     ParseError(String),
     DBError,
     ConnectionClosed,
+    TxNotValid,
+    NoTxInUtxos,
 }
 
 

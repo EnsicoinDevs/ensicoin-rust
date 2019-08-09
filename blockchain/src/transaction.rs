@@ -69,7 +69,7 @@ impl Size for TxIn {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TxOut {
     pub value: u64,
     pub script: VarStr,
@@ -277,14 +277,11 @@ impl<'a> TxTxo<'a> {
             return false
         }
 
-        //check is tx exists in main chain
+        //check if tx exists in main chain
         if super::Utxos::tx_exist(self.tx.hash().unwrap()).unwrap() {
             return false
         }
-        //check all txos if said output is not already in some tx input in mainchain
-        for utxo in &self.txos {
-            
-        }
+
         true
     }
 }

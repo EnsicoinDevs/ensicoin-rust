@@ -14,7 +14,7 @@ impl KnownPeers {
 
     pub fn add_peer(&self, ip: String) -> Result<(), Error> {
         let db = KnownPeers::open()?;
-        db.set(ip, vec![])?;
+        db.set(ip, &[])?;
 
         db.flush()?;
         Ok(())

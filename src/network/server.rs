@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::thread;
 use tokio::net::{ TcpListener, TcpStream };
 use tokio::sync::mpsc;
 
 use blockchain::*;
 use mempool::Mempool;
 use super::message::*;
+#[cfg(feature = "rpc-server")]
 use rpc;
+#[cfg(feature = "rpc-server")]
 use rpc::discover_grpc::Discover;
+#[cfg(feature = "rpc-server")]
+use std::thread;
+
 use super::Peer;
 use super::KnownPeers;
 
@@ -26,7 +30,10 @@ impl Server {
         // dbg!(format!("{:?}", Blockchain::get_blocks().unwrap()));
         println!("Ensicoin started");
         let (tx, rx) = mpsc::channel(512);
+
+        #[cfg(feature = "rpc-server")]
         launch_discovery_server();
+
         Server {
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
@@ -39,7 +46,7 @@ impl Server {
     pub async fn listen(self, port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let sender = self.sender.clone();
         tokio::spawn(async move {
-            peer_routine(sender).await;
+                peer_routine(sender).await;
         });
 
         let mut listener = TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap();
@@ -106,6 +113,8 @@ impl Server {
                             Err(e) => println!("{}", e),
                         }
 
+                    } else {
+                        println!("Peer already exists");
                     }
                 },
                 ServerMessage::AddPeer(sender, ip) => {
@@ -193,9 +202,11 @@ impl Server {
 
 }
 
+#[cfg(feature = "rpc-server")]
 struct DiscoverImpl {
     peers: KnownPeers
 }
+#[cfg(feature = "rpc-server")]
 impl Discover for DiscoverImpl {
     fn discover_peer(&self, _o: grpc::RequestOptions, p: rpc::discover::NewPeer) -> grpc::SingleResponse<rpc::discover::Ok> {
         let ip : SocketAddr = p.get_address().parse().unwrap();
@@ -209,6 +220,7 @@ impl Discover for DiscoverImpl {
     }
 }
 
+#[cfg(feature = "rpc-server")]
 fn launch_discovery_server() {
     thread::spawn(move || {
         let mut server = grpc::ServerBuilder::new_plain();
@@ -231,7 +243,8 @@ async fn peer_routine(mut sender: tokio::sync::mpsc::Sender<ServerMessage>) {
         for p in peers {
             sender.send(ServerMessage::CreatePeer(p.parse().unwrap())).await.unwrap();
         }
-
-        thread::sleep(std::time::Duration::from_secs(180));
+        tokio::timer::Delay::new(std::time::Instant::now() + std::time::Duration::from_secs(180));
+        // tokio::timer::Interval::new_interval(std::time::Duration::from_secs(180));
+        // thread::sleep(std::time::Duration::from_secs(180));
     }
 }

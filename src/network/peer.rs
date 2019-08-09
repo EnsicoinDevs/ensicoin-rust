@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use tokio::io::AsyncWrite;
 use std::cmp::min;
 use bincode::serialize;
@@ -6,7 +8,7 @@ use super::message::*;
 use tokio::net::TcpStream;
 use tokio::io::{ AsyncWriteExt, AsyncReadExt };
 use tokio::sync::mpsc;
-use tokio::sync::lock::Lock;
+use tokio::sync::Lock;
 use utils::Error;
 use utils::Size;
 use utils::ToBytes;
@@ -22,8 +24,7 @@ pub struct Peer {
     stream              : Lock<TcpStream>,
     server_sender       : mpsc::Sender<ServerMessage>,
     sender              : mpsc::Sender<ServerMessage>,
-    // receiver            : mpsc::Receiver<ServerMessage>,
-    connection_version  : Lock<u32>,
+    connection_version  : Arc<AtomicU32>,
     initiated_by_us     : bool,
     connection_state    : Lock<State>,
 } impl Peer {
@@ -36,8 +37,7 @@ pub struct Peer {
             stream,
             server_sender,
             sender,
-            // receiver,
-            connection_version  : Lock::new(1),
+            connection_version  : Arc::new(AtomicU32::new(1)),
             initiated_by_us,
             connection_state    : Lock::new(State::Tcp),
         }
@@ -101,8 +101,6 @@ pub struct Peer {
     }
 
     pub async fn update(mut self) -> Result<(), Error> {
-        //try to read incoming server message
-
         loop {
             match self.read_message().await {
                 Ok(_) => (),
@@ -195,21 +193,22 @@ pub struct Peer {
         Ok((message_type, payload))
     }
 
-    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::lock::LockGuard<State>, stream: &mut TcpStream) -> Result<(), Error> {
+    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::LockGuard<State>, stream: &mut TcpStream) -> Result<(), Error> {
         match message_type.as_str() {
             "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                 if *state == State::Tcp {
                     println!("Received message whoami");
                     let message = WhoAmI::read(payload);
                     let message_ver = message.version;
-                    let mut conn_ver = self.connection_version.lock().await;
+                    let conn_ver = self.connection_version.load(std::sync::atomic::Ordering::Acquire);
                     if !self.initiated_by_us {
                         // send WhoAmI
-                        let message = Message::WhoAmI(WhoAmI::new(*conn_ver));
+                        let message = Message::WhoAmI(WhoAmI::new(conn_ver));
                         Peer::send(message, stream).await?;
                     }
                     Peer::send(Message::WhoAmIAck, stream).await?;
-                    *conn_ver = min(message_ver, *conn_ver);
+                    self.connection_version.store(min(message_ver, conn_ver),
+                        std::sync::atomic::Ordering::Release);
                     *state = State::WhoAmI;
                 } else {
                     println!("received unusual number of whoami");

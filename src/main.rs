@@ -7,7 +7,6 @@ use utils::clp;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // matrix::Http::new().register("hey", "secret");
     let args = clp::args();
     init::read_config()?;
     let server = Server::new();
