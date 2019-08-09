@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 use bincode::{serialize, deserialize};
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 use model::*;
 use blockchain::transaction::Transaction;
 use blockchain::block::Block;

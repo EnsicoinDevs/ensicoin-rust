@@ -66,7 +66,7 @@ impl Size for Address {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct VarUint {
     size: u8,
     pub value: u64,
@@ -147,7 +147,7 @@ impl Size for VarUint {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct VarStr {
     size: VarUint,
     pub value: String,

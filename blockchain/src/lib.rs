@@ -105,7 +105,7 @@ impl Utxos {
         let db = Utxos::open()?;
         let v = match db.get(tx_hash)? {
             Some(v) => v,
-            None => sled::IVec::from(&[]),
+            None => return Err(Error::NoTxInUtxos),
         };
         let utxos = (v).to_vec();
         if utxos.is_empty() {

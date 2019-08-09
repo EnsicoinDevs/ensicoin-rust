@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 dirs    = "*"
 reqwest = "0.9"
-serde = "*"
-serde_json = "*"
+serde = "1.0"
+serde_json = "1.0"

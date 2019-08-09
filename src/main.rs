@@ -1,15 +1,16 @@
+#![feature(async_await)]
 pub mod init;
 mod network;
 use std::error::Error;
 use network::server::Server;
 use utils::clp;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // matrix::Http::new().register("hey", "secret");
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let args = clp::args();
     init::read_config()?;
-    let mut server = Server::new(args.port);
-    server.interactive();
-    server.listen();
+    let server = Server::new();
+    server.interactive().await;
+    server.listen(args.port).await?;
     Ok(())
 }

@@ -14,16 +14,22 @@ version = "0.1.0"
 authors = ["Arttaaz <arttaaz@gmail.com>"]
 edition = "2018"
 
+[features]
+default = []
+matrix-discovery = ["matrix"]
+rpc-server = ["grpc", "rpc"]
+
 [dependencies]
 bincode         = "*"
 blockchain      = { path = "./blockchain" }
 dirs            = "*"
-grpc            = "0.6.1"
-matrix          = { path = "./matrix" }
+grpc            = { version = "0.6.1", optional = true }
+matrix          = { path = "./matrix", optional = true }
 mempool         = { path = "./mempool" }
 model           = { path = "./model" }
-rpc             = { path = "./rpc" }
+rpc             = { path = "./rpc", optional = true }
 serde           = "1.0"
 serde_json      = "1.0"
 sled            = "*"
 utils           = { path = "./utils" }
+tokio           = "0.2.0-alpha.1"
