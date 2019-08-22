@@ -1,4 +1,3 @@
-#![feature(async_await)]
 pub mod init;
 mod network;
 use std::error::Error;
