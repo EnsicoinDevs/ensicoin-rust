@@ -19,12 +19,14 @@ impl KnownPeers {
         db.flush()?;
         Ok(())
     }
+
     pub fn get_peers(&self) -> Result<Vec<String>, Error> {
         let db = KnownPeers::open()?;
         let iter = db.iter();
         let r = iter.map( |x| String::from_utf8(x.unwrap().0.to_vec()).unwrap() ).collect();
         Ok(r)
     }
+    
     pub fn del_peer(&self, ip: String) -> Result<(), Error> {
         let db = KnownPeers::open()?;
 

@@ -94,7 +94,6 @@ pub struct WhoAmI {
     }
 
     pub fn read(payload : Vec<u8>) -> Self {
-        println!("reading whoami message...");
         let mut version = payload[0..4].to_vec();
         version.reverse();
         let version : u32 = deserialize(&version).unwrap();

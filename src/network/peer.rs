@@ -8,7 +8,8 @@ use super::message::*;
 use tokio::net::TcpStream;
 use tokio::io::{ AsyncWriteExt, AsyncReadExt };
 use tokio::sync::mpsc;
-use tokio::sync::Lock;
+use tokio::sync::Mutex;
+use tracing::{ debug, error, info, span, warn };
 use utils::Error;
 use utils::Size;
 use utils::ToBytes;
@@ -20,47 +21,56 @@ enum State {
     Acknowledged
 }
 
+type Locked<T> = Arc<Mutex<T>>;
+
 pub struct Peer {
-    stream              : Lock<TcpStream>,
+    stream              : Locked<TcpStream>,
     server_sender       : mpsc::Sender<ServerMessage>,
     sender              : mpsc::Sender<ServerMessage>,
     connection_version  : Arc<AtomicU32>,
     initiated_by_us     : bool,
-    connection_state    : Lock<State>,
+    connection_state    : Locked<State>,
+    peer_addr           : String,
 } impl Peer {
     pub fn new(stream : TcpStream, server_sender : mpsc::Sender<ServerMessage>, initiated_by_us : bool) -> Peer {
         let (sender, receiver) = mpsc::channel(512);
-        let stream = Lock::new(stream);
+        let ip = stream.peer_addr().unwrap();
+        let stream = Arc::new(Mutex::new(stream));
         let s2 = stream.clone();
-        tokio::spawn(async move { Peer::handle_server_message(receiver, s2).await.unwrap(); });
+        tokio::spawn(async move { Peer::handle_server_message(receiver, &s2).await.unwrap(); });
         Peer {
             stream,
             server_sender,
             sender,
             connection_version  : Arc::new(AtomicU32::new(1)),
             initiated_by_us,
-            connection_state    : Lock::new(State::Tcp),
+            connection_state    : Arc::new(Mutex::new(State::Tcp)),
+            peer_addr           : ip.to_string(),
         }
     }
 
     pub async fn read_message(&mut self) -> Result<(), Error> {
-        let mut stream = self.stream.lock().await;
-        let (message_type, payload) = self.check_header(&mut stream).await?;
-        let state = self.connection_state.lock().await;
+        let ip = self.peer_addr.clone();
+        let span = span!(tracing::Level::DEBUG, "Reading message", ip = ip.as_str());
+        let _enter = span.enter();
+        let stream = self.stream.clone();
+        let (message_type, payload) = self.check_header(&stream).await?;
+        let state = self.connection_state.clone();
+        let state = state.lock().await;
         if *state != State::Acknowledged {
-            self.handle_handshake(message_type, payload, state, &mut stream).await?;
+            self.handle_handshake(message_type, payload, state, &stream).await?;
         }
         else {
             drop(state);
             match message_type.as_str() {
                 "2plus2is4\u{0}\u{0}\u{0}" => {
-                    println!("2 plus 2 is 4!");
+                    debug!(ip = ip.as_str(), "2 plus 2 is 4!");
                     let message = Message::MinusOne;
-                    Peer::send(message, &mut *stream).await?;
+                    Peer::send(message, &stream).await?;
                 },
                 "inv\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let message = Inv::read(&payload);
-                    println!("Received Inv message with {} items", &message.count.value);
+                    debug!("Received Inv message with {} items", &message.count.value);
                     let mut txs = Vec::new();
                     let mut blocks = Vec::new();
                     for item in message.inventory {
@@ -79,40 +89,46 @@ pub struct Peer {
                 },
                 "getdata\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let message = Message::GetData(Inv::read(&payload));
-                    dbg!(&message);
+                    debug!("{:?}", &message);
                 },
                 "getblocks\u{0}\u{0}\u{0}" => {
-                    println!("Received getblocks");
+                    debug!("Received getblocks");
                     let message = GetBlocks::read(&payload);
                     self.server_sender.send(ServerMessage::GetBlocks(self.sender.clone(), message)).await?;
                 },
                 "transaction\u{0}" => {
                     let tx = blockchain::transaction::Transaction::read(&payload);
+                    info!("Received tx, tx_hash: {}", utils::hash_to_string(&tx.hash().unwrap()));
                     self.server_sender.send(ServerMessage::AddTx(tx)).await?;
                 },
                 "block\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                     let block = blockchain::block::Block::read(&payload)?;
+                    info!("Received block, block_hash: {}", utils::hash_to_string(&block.hash().unwrap()));
                     self.server_sender.send(ServerMessage::AddBlock(block)).await?;
                 },
-                _ => { println!("didn't understand message type: {}", message_type); }
+                _ => { warn!("didn't understand message type: {}", message_type); }
             }
         }
         Ok(())
     }
 
     pub async fn update(mut self) -> Result<(), Error> {
+
         loop {
             match self.read_message().await {
                 Ok(_) => (),
-                Err(e) => { match e {
+                Err(e) => {
+                    let ip = self.peer_addr.clone();
+                    let span = span!(tracing::Level::ERROR, "Peer update loop ", ip = ip.as_str());
+                    let _enter = span.enter();
+                    match e {
                     Error::IOError(e) => {
                         if e.kind() == std::io::ErrorKind::WouldBlock {
-                            // println!("nothing to read");
                         } else {
-                            println!("{:?}", e); break;
+                            error!("{:?}", e); break;
                         }
                     },
-                    _ => { println!("{:?}", e); break; }
+                    _ => { error!("{:?}", e); break; }
                     }
                 }
             }
@@ -121,11 +137,11 @@ pub struct Peer {
         Ok(())
     }
 
-    pub async fn connect(mut self) -> Result<(), Error> {
-        let mut stream = self.stream.lock().await;
-        let message = Message::WhoAmI(WhoAmI::default());
-        Peer::send(message, &mut *stream).await?;
-        drop(stream);
+    pub async fn connect(self) -> Result<(), Error> {
+        {
+            let message = Message::WhoAmI(WhoAmI::default());
+            Peer::send(message, &self.stream).await?;
+        }
         self.update().await?;
         Ok(())
     }
@@ -152,23 +168,26 @@ pub struct Peer {
         Ok(buffer)
     }
 
-    async fn send<T>(message : Message, stream: &mut T) -> Result<(), Error>
+    async fn send<T>(message : Message, stream: &Locked<T>) -> Result<(), Error>
         where T: AsyncWrite + std::marker::Unpin {
+        let mut stream = stream.lock().await;
         let mut buffer = Peer::prepare_header(message.name(), message.size())?;
         buffer.append(&mut message.send());
         stream.write_all(&buffer).await?;
         Ok(())
     }
 
-    async fn read_header(&mut self, stream: &mut TcpStream) -> Result<Vec<u8>, Error> {
+    async fn read_header(&mut self, stream: &Locked<TcpStream>) -> Result<Vec<u8>, Error> {
         let mut buffer : [u8; 24] = [0; 24];
+        let mut stream = stream.lock().await;
         stream.read_exact(&mut buffer).await?;
         Ok(buffer.to_vec())
     }
 
-    async fn read_payload(&mut self, length : usize, stream: &mut TcpStream) -> Result<Vec<u8>, Error> {
+    async fn read_payload(&mut self, length : usize, stream: &Locked<TcpStream>) -> Result<Vec<u8>, Error> {
         if length != 0 {
             let mut buffer = vec![0; length];
+            let mut stream = stream.lock().await;
             stream.read_exact(&mut buffer).await?;
 
             Ok(buffer)
@@ -176,13 +195,14 @@ pub struct Peer {
             Ok(vec![])
         }
     }
-    async fn check_header(&mut self, stream: &mut TcpStream) -> Result<(String, Vec<u8>), Error> {
+
+    async fn check_header(&mut self, stream: &Locked<TcpStream>) -> Result<(String, Vec<u8>), Error> {
         let header = self.read_header(stream).await?;
         let mut magic = header[0..4].to_vec();
         magic.reverse();
         let magic : u32 = deserialize(&magic)?;
         if magic != 42_2021 {
-            println!("wrong magic number : {}", magic);
+            error!("wrong magic number : {}", magic);
             return Err(Error::ConnectionClosed)
         }
         let message_type : String = String::from_utf8(header[4..16].to_vec())?;
@@ -193,11 +213,11 @@ pub struct Peer {
         Ok((message_type, payload))
     }
 
-    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::LockGuard<State>, stream: &mut TcpStream) -> Result<(), Error> {
+    async fn handle_handshake(&mut self, message_type: String, payload: Vec<u8>, mut state: tokio::sync::MutexGuard<'_, State>, stream: &Locked<TcpStream>) -> Result<(), Error> {
         match message_type.as_str() {
             "whoami\u{0}\u{0}\u{0}\u{0}\u{0}\u{0}" => {
                 if *state == State::Tcp {
-                    println!("Received message whoami");
+                    debug!("Received message whoami");
                     let message = WhoAmI::read(payload);
                     let message_ver = message.version;
                     let conn_ver = self.connection_version.load(std::sync::atomic::Ordering::Acquire);
@@ -211,32 +231,34 @@ pub struct Peer {
                         std::sync::atomic::Ordering::Release);
                     *state = State::WhoAmI;
                 } else {
-                    println!("received unusual number of whoami");
+                    error!("received unusual number of whoami");
                     return Err(Error::ConnectionClosed)
                 }
             },
             "whoamiack\u{0}\u{0}\u{0}" => {
                 if *state == State::WhoAmI {
                     *state = State::Acknowledged;
-                    self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), stream.peer_addr().unwrap())).await?;
-                    println!("Handshake completed");
-
+                    let stream_locked = stream.lock().await;
+                    self.server_sender.send(ServerMessage::AddPeer(self.sender.clone(), stream_locked.peer_addr().unwrap())).await?;
+                    debug!("Handshake completed");
+                    drop(stream_locked);
+                    info!("Asking blocks");
                     let getblocks = Message::GetBlocks(GetBlocks::from_hashes(vec![blockchain::Block::genesis_block()?.hash_header()?], vec![0;32]));
                     Peer::send(getblocks, stream).await?;
                 } else {
-                    println!("reveiced whoamiack message before whoami message");
+                    error!("reveiced whoamiack message before whoami message");
                     return Err(Error::ConnectionClosed)
                 }
             },
             _ => {
-                println!("Recieved incorrect message_type : {:?}", message_type.as_str());
+                error!("Recieved incorrect message_type : {:?}", message_type.as_str());
                 return Err(Error::ConnectionClosed)
             }
         }
         Ok(())
     }
 
-    async fn handle_server_message(mut receiver: tokio::sync::mpsc::Receiver<ServerMessage>, mut stream: Lock<TcpStream>) -> Result<(), Error> {
+    async fn handle_server_message(mut receiver: tokio::sync::mpsc::Receiver<ServerMessage>, stream: &Locked<TcpStream>) -> Result<(), Error> {
         loop {
             match receiver.recv().await {
                 Some(m)    => {
@@ -247,7 +269,6 @@ pub struct Peer {
                             break;
                         },
                         ServerMessage::AskTxs(hashes)   => {
-                            let mut stream = stream.lock().await;
                             //construct invvect and send it
                             let mut inventory = Vec::new();
                             let length = hashes.len();
@@ -258,18 +279,16 @@ pub struct Peer {
                                 count: model::VarUint::from_u64(length as u64),
                                 inventory
                             });
-                            Peer::send(message, &mut *stream).await.unwrap();
+                            Peer::send(message, stream).await.unwrap();
                         },
                         ServerMessage::GetBlocksReply(hashs) => {
-                            let mut stream = stream.lock().await;
                             let message = Message::Inv(Inv::from_vec(hashs));
-                            Peer::send(message, &mut *stream).await.unwrap();
+                            Peer::send(message, stream).await.unwrap();
                         },
                         ServerMessage::AskBlocks(hashs) => {
-                            let mut stream = stream.lock().await;
-                            println!("Asking blocks");
+                            debug!("Asking blocks");
                             let message = Message::GetData(Inv::from_vec(hashs));
-                            Peer::send(message, &mut *stream).await.unwrap();
+                            Peer::send(message, stream).await.unwrap();
                         },
                         _   => ()
                     }

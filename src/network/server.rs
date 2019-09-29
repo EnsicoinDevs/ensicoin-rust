@@ -27,13 +27,12 @@ pub struct Server {
 
 impl Server {
     pub fn new() -> Server {
-        // dbg!(format!("{:?}", Blockchain::get_blocks().unwrap()));
-        println!("Ensicoin started");
-        let (tx, rx) = mpsc::channel(512);
+        tracing::info!("Ensicoin started");
 
         #[cfg(feature = "rpc-server")]
         launch_discovery_server();
 
+        let (tx, rx) = mpsc::channel(512);
         Server {
             server_version  : Arc::new(1),
             peers           : HashMap::new(),
@@ -49,12 +48,13 @@ impl Server {
                 peer_routine(sender).await;
         });
 
-        let mut listener = TcpListener::bind(&SocketAddr::new("0.0.0.0".parse().unwrap(), port)).unwrap();
+        let addr = SocketAddr::new("0.0.0.0".parse().unwrap(), port);
+        let mut listener = TcpListener::bind(&addr).await.unwrap();
         let sender = self.sender.clone();
         tokio::spawn(async move {
             loop {
                 let (stream, _) = listener.accept().await.unwrap();
-                println!("Incoming peer");
+                tracing::info!("Incoming peer: {}", stream.peer_addr().unwrap());
                 let sender2 = sender.clone();
                 tokio::spawn(async move {
                     Peer::new(stream, sender2, false).update().await.unwrap();
@@ -77,13 +77,19 @@ impl Server {
                         println!("Enter a valid ip address: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(ServerMessage::CreatePeer(ip.parse().unwrap())).await.unwrap();
+                        match ip.parse::<SocketAddr>() {
+                            Ok(ip) => sender.send(ServerMessage::CreatePeer(ip)).await.unwrap(),
+                            Err(why) => println!("Error: {:?}", why),
+                        }
                     },
                     "close\n" => {
                         println!("Enter a peer address to close: ");
                         std::io::stdin().read_line(&mut ip).unwrap();
                         ip = ip[..ip.len()-1].to_string();
-                        sender.send(ServerMessage::ClosePeer(ip.parse().unwrap())).await.unwrap();
+                        match sender.send(ServerMessage::ClosePeer(ip.parse().unwrap())).await {
+                            Ok(_) => (),
+                            Err(why) => println!("Error: {:?}", why),
+                        }
                     },
                     "exit\n" => {
                         sender.send(ServerMessage::CloseServer).await.unwrap();
@@ -97,6 +103,7 @@ impl Server {
     }
 
     pub async fn message_listener(mut self) {
+
         loop {
             let message = self.receiver.recv().await.unwrap();
             match message {
@@ -107,21 +114,25 @@ impl Server {
                         match TcpStream::connect(&ip).await {
                             Ok(tcp) => {
                                 tokio::spawn(async move {
-                                Peer::new(tcp, sender, true).connect().await.unwrap();
+                                let span = tracing::span!(tracing::Level::DEBUG, "Peer spawn", ip = tcp.peer_addr().unwrap().to_string().as_str());
+                                span.in_scope(|| tokio::spawn(async move {
+                                    Peer::new(tcp, sender, true).connect().await.unwrap();
+                                }));
                             });
                         },
-                            Err(e) => println!("{}", e),
+                            Err(e) => tracing::warn!("Couldn't connect to peer {}", e),
                         }
 
                     } else {
-                        println!("Peer already exists");
+                        tracing::warn!("Peer already exists");
                     }
                 },
                 ServerMessage::AddPeer(sender, ip) => {
+                    tracing::info!("Added new peer: {}", &ip);
                     self.peers.insert(ip, sender.clone());
                     match KnownPeers.add_peer((ip).to_string()) {
                         Ok(_) => (),
-                        Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
+                        Err(e) => { tracing::warn!("Known Peers database probably dead: {:?}", e); }
                     }
                 },
                 ServerMessage::DeletePeer(ip) => {
@@ -130,10 +141,10 @@ impl Server {
                     }
                     match KnownPeers.del_peer((ip).to_string()) {
                         Ok(_) => (),
-                        Err(e) => { println!("Known Peers database probably dead: {:?}", e); }
+                        Err(e) => { tracing::warn!("Known Peers database probably dead: {:?}", e); }
                     }
 
-                    println!("peer deleted: {}", &ip);
+                    tracing::info!("peer deleted: {}", &ip);
                 },
                 ServerMessage::ClosePeer(ip) => {
                     if self.peers.contains_key(&ip) {
@@ -144,7 +155,8 @@ impl Server {
                     for p in self.peers.values_mut() {
                         p.send(ServerMessage::CloseConnection).await.unwrap();
                     }
-                    panic!("Ensicoin stopped");
+                    tracing::info!("Ensicoin stopped");
+                    return ()
                 },
                 ServerMessage::CheckTxs(mut sender, hashes) => {
                     let mut inventory = Vec::new();
@@ -172,7 +184,7 @@ impl Server {
                     }
                     match sender.send(ServerMessage::GetBlocksReply(hashs)).await {
                         Ok(_) => (),
-                        Err(e) => println!("could not send message: {:?}", e),
+                        Err(e) => tracing::warn!("could not send message: {:?}", e),
                     }
                 },
                 ServerMessage::AddTx(tx) => {
@@ -188,7 +200,7 @@ impl Server {
                                 inv.push((hash.clone(), 1));
                                 sender.send(ServerMessage::AskBlocks(inv)).await.unwrap();
                             },
-                            Err(e) => println!("Something went wrong: {:?}", e),
+                            Err(e) => tracing::error!("Something went wrong: {:?}", e),
                         }
                     }
                 },
@@ -211,10 +223,10 @@ impl Discover for DiscoverImpl {
     fn discover_peer(&self, _o: grpc::RequestOptions, p: rpc::discover::NewPeer) -> grpc::SingleResponse<rpc::discover::Ok> {
         let ip : SocketAddr = p.get_address().parse().unwrap();
         //check known peer db
-        println!("Received peer");
+        tracing::info!("Received peer");
         match self.peers.add_peer(ip.to_string()) {
             Ok(_) => (),
-            Err(_) => { println!("failed to add peer"); }
+            Err(_) => { tracing::error!("failed to add peer"); }
         }
         grpc::SingleResponse::completed(rpc::discover::Ok::new())
     }
@@ -228,7 +240,7 @@ fn launch_discovery_server() {
         server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl{peers: KnownPeers}));
         let _server = server.build().expect("server");
 
-        println!("discovery server started on port 2442");
+        tracing::info!("discovery server started on port 2442");
 
         loop {
             std::thread::park();
@@ -238,13 +250,14 @@ fn launch_discovery_server() {
 
 async fn peer_routine(mut sender: tokio::sync::mpsc::Sender<ServerMessage>) {
     let db = KnownPeers;
+    let span = tracing::span!(tracing::Level::DEBUG, "known peer routine");
+    let _ = span.enter();
     loop {
         let peers = db.get_peers().unwrap();
         for p in peers {
+            tracing::info!("Connecting to known peer: {}", &p);
             sender.send(ServerMessage::CreatePeer(p.parse().unwrap())).await.unwrap();
         }
-        tokio::timer::Delay::new(std::time::Instant::now() + std::time::Duration::from_secs(180));
-        // tokio::timer::Interval::new_interval(std::time::Duration::from_secs(180));
-        // thread::sleep(std::time::Duration::from_secs(180));
+        std::thread::sleep(std::time::Duration::from_secs(180));
     }
 }
