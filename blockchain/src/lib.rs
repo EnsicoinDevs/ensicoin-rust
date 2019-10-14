@@ -1,5 +1,6 @@
 pub mod block;
 pub use block::Block;
+pub mod scripts;
 pub mod transaction;
 
 use dirs::data_dir;

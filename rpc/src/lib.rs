@@ -1,2 +1,3 @@
-pub mod discover;
-pub mod discover_grpc;
+pub mod ensicoin_proto {
+    tonic::include_proto!("ensicoin_rpc");
+}

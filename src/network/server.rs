@@ -9,10 +9,6 @@ use mempool::Mempool;
 use super::message::*;
 #[cfg(feature = "rpc-server")]
 use rpc;
-#[cfg(feature = "rpc-server")]
-use rpc::discover_grpc::Discover;
-#[cfg(feature = "rpc-server")]
-use std::thread;
 
 use super::Peer;
 use super::KnownPeers;
@@ -28,9 +24,6 @@ pub struct Server {
 impl Server {
     pub fn new() -> Server {
         tracing::info!("Ensicoin started");
-
-        #[cfg(feature = "rpc-server")]
-        launch_discovery_server();
 
         let (tx, rx) = mpsc::channel(512);
         Server {
@@ -212,40 +205,6 @@ impl Server {
         }
     }
 
-}
-
-#[cfg(feature = "rpc-server")]
-struct DiscoverImpl {
-    peers: KnownPeers
-}
-#[cfg(feature = "rpc-server")]
-impl Discover for DiscoverImpl {
-    fn discover_peer(&self, _o: grpc::RequestOptions, p: rpc::discover::NewPeer) -> grpc::SingleResponse<rpc::discover::Ok> {
-        let ip : SocketAddr = p.get_address().parse().unwrap();
-        //check known peer db
-        tracing::info!("Received peer");
-        match self.peers.add_peer(ip.to_string()) {
-            Ok(_) => (),
-            Err(_) => { tracing::error!("failed to add peer"); }
-        }
-        grpc::SingleResponse::completed(rpc::discover::Ok::new())
-    }
-}
-
-#[cfg(feature = "rpc-server")]
-fn launch_discovery_server() {
-    thread::spawn(move || {
-        let mut server = grpc::ServerBuilder::new_plain();
-        server.http.set_port(2442);
-        server.add_service(rpc::discover_grpc::DiscoverServer::new_service_def(DiscoverImpl{peers: KnownPeers}));
-        let _server = server.build().expect("server");
-
-        tracing::info!("discovery server started on port 2442");
-
-        loop {
-            std::thread::park();
-        }
-    });
 }
 
 async fn peer_routine(mut sender: tokio::sync::mpsc::Sender<ServerMessage>) {

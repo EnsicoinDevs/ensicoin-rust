@@ -131,7 +131,9 @@ impl Block {
             return false;
         }
 
-        //valid txs
+        // valid coinbase
+
+        // valid txs
         let mut utxos : Vec<TxOut>;
         let mut tx_txo : super::transaction::TxTxo;
         for tx in &self.transactions[1..] {

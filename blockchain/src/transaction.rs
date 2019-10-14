@@ -277,10 +277,23 @@ impl<'a> TxTxo<'a> {
             return false
         }
 
-        //check if tx exists in main chain
+        for input in &self.tx.inputs {
+            if !super::Utxos::tx_exist(input.previous_output.hash.clone()).unwrap() {
+                return false
+            }
+            //check block height if input is coinbase
+
+            //verify script
+            if !super::scripts::verify_script(input.script.value.as_bytes()) {
+                return false
+            }
+        }
+
+        //check if tx has been spent
         if super::Utxos::tx_exist(self.tx.hash().unwrap()).unwrap() {
             return false
         }
+
 
         true
     }

@@ -8,11 +8,10 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-grpc            = "0.6.1"
-protobuf        = "~2"
-futures         = "~0.1"
-futures-cpupool = "~0.1"
+tonic = "0.1.0-alpha.3"
+bytes = "0.4"
+prost = "0.5"
+prost-derive = "0.5"
 
 [build-dependencies]
-protobuf-codegen-pure = "2.3"
-# protoc-rust-grpc = "*"
+tonic-build = "0.1.0-alpha.3"

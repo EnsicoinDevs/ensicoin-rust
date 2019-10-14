@@ -15,15 +15,14 @@ authors = ["Arttaaz <arttaaz@gmail.com>"]
 edition = "2018"
 
 [features]
-default = []
+default = ["rpc-server"]
 matrix-discovery = ["matrix"]
-rpc-server = ["grpc", "rpc"]
+rpc-server = ["rpc"]
 
 [dependencies]
 bincode             = "*"
 blockchain          = { path = "./blockchain" }
 dirs                = "*"
-grpc                = { version = "0.6.1", optional = true }
 matrix              = { path = "./matrix", optional = true }
 mempool             = { path = "./mempool" }
 model               = { path = "./model" }
