@@ -1,10 +1,10 @@
 [workspace]
 members = [
   "blockchain",
-  "matrix",
+  # "matrix",
   "mempool",
   "model",
-  "rpc",
+  # "rpc",
   "utils",
 ]
 
@@ -14,23 +14,25 @@ version = "0.1.0"
 authors = ["Arttaaz <arttaaz@gmail.com>"]
 edition = "2018"
 
-[features]
-default = ["rpc-server"]
-matrix-discovery = ["matrix"]
-rpc-server = ["rpc"]
+# [features]
+# default = ["rpc-server"]
+# matrix-discovery = ["matrix"]
+# rpc-server = ["rpc"]
 
 [dependencies]
 bincode             = "*"
 blockchain          = { path = "./blockchain" }
+cookie-factory      = "0.3"
 dirs                = "*"
-matrix              = { path = "./matrix", optional = true }
+# matrix              = { path = "./matrix", optional = true }
 mempool             = { path = "./mempool" }
 model               = { path = "./model" }
-rpc                 = { path = "./rpc", optional = true }
-serde               = "1.0"
+nom                 = "5.0"
+# rpc                 = { path = "./rpc", optional = true }
+serde               = { version = "1.0", features = ["derive"] }
 serde_json          = "1.0"
 sled                = "*"
 utils               = { path = "./utils" }
-tokio               = "0.2.0-alpha.4"
+tokio               = { version = "0.2", features = ["io-util", "macros", "rt-core", "sync", "stream", "tcp"] }
 tracing             = "0.1"
 tracing-subscriber  = "0.1"

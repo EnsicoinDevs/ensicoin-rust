@@ -8,4 +8,6 @@ edition = "2018"
 
 [dependencies]
 bincode         = "*"
+cookie-factory  = "0.3"
+nom             = "5.0"
 utils           = { path = "../utils" }

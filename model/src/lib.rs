@@ -1,3 +1,12 @@
+use cookie_factory::combinator::cond;
+use cookie_factory::combinator::slice;
+use cookie_factory::bytes::be_u8;
+use cookie_factory::bytes::be_u16;
+use cookie_factory::bytes::be_u32;
+use cookie_factory::bytes::be_u64;
+use cookie_factory::sequence::tuple;
+use cookie_factory::SerializeFn;
+use std::io::Write;
 use bincode::deserialize;
 use bincode::serialize;
 use utils::Size;
@@ -47,16 +56,27 @@ impl Address {
         })
     }
 
+    fn serialize<'c, W: Write + 'c>(&self) -> impl SerializeFn<W> + 'c {
+        tuple((
+            be_u64(self.timestamp),
+            slice(self.ip.clone()),
+            be_u16(self.port),
+        ))
+    }
+
     pub fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        let mut t = serialize(&self.timestamp).unwrap();
-        t.reverse();
-        buffer.append(&mut t);
-        let mut ip = self.ip.clone();
-        buffer.append(&mut ip);
-        let mut p = serialize(&self.port).unwrap();
-        p.reverse();
-        buffer.append(&mut p);
+
+        let (_, _) = cookie_factory::gen(self.serialize(), &mut buffer).unwrap();
+        //
+        // let mut t = serialize(&self.timestamp).unwrap();
+        // t.reverse();
+        // buffer.append(&mut t);
+        // let mut ip = self.ip.clone();
+        // buffer.append(&mut ip);
+        // let mut p = serialize(&self.port).unwrap();
+        // p.reverse();
+        // buffer.append(&mut p);
         buffer
     }
 }
@@ -107,9 +127,9 @@ impl VarUint {
         let size;
         if value < 252 {
             size = 1;
-        } else if value < 0xFFFF {
+        } else if value <= 0xFFFF {
             size = 2;
-        } else if value < 0xFFFFFFFF {
+        } else if value <= 0xFFFFFFFF {
             size = 4;
         } else {
             size = 8;
@@ -120,24 +140,37 @@ impl VarUint {
         }
     }
 
+    fn serialize<'c, W: Write + 'c>(&self) -> impl SerializeFn<W> + 'c {
+        let value = self.value;
+
+        tuple((
+            cond(value <= 252, be_u8(value as u8)),
+            cond(value > 252 && value <= 0xFFFF, tuple((be_u8(0xFD), be_u16(value as u16)))),
+            cond(value > 0xFFFF && value <= 0xFFFFFFFF, tuple((be_u8(0xFE), be_u32(value as u32)))),
+            cond(value > 0xFFFFFFFF, tuple((be_u8(0xFF), be_u64(value)))),
+        ))
+    }
+
     pub fn send(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        let mut v: Vec<u8>;
-        match self.size {
-            1 => v = serialize(&(self.value as u8)).unwrap(),
-            2 => {
-                buffer.push(0xFD);
-                v = serialize(&(self.value as u16)).unwrap();},
-            4 => {
-                buffer.push(0xFE);
-                v = serialize(&(self.value as u32)).unwrap();},
-            8 => {
-                buffer.push(0xFF);
-                v = serialize(&self.value).unwrap();},
-            _ => panic!(),
-        }
-        v.reverse();
-        buffer.append(&mut v);
+
+        let (_,_) = cookie_factory::gen(self.serialize(), &mut buffer).unwrap();
+        // let mut v: Vec<u8>;
+        // match self.size {
+        //     1 => v = serialize(&(self.value as u8)).unwrap(),
+        //     2 => {
+        //         buffer.push(0xFD);
+        //         v = serialize(&(self.value as u16)).unwrap();},
+        //     4 => {
+        //         buffer.push(0xFE);
+        //         v = serialize(&(self.value as u32)).unwrap();},
+        //     8 => {
+        //         buffer.push(0xFF);
+        //         v = serialize(&self.value).unwrap();},
+        //     _ => panic!(),
+        // }
+        // v.reverse();
+        // buffer.append(&mut v);
         buffer
     }
 }
